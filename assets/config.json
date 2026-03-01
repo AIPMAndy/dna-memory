@@ -1,0 +1,11 @@
+{
+  "decay_days": 7,
+  "decay_rate": 0.1,
+  "forget_threshold": 0.2,
+  "reflect_trigger": 20,
+  "max_short_term": 100,
+  "max_long_term": 500,
+  "embedding_model": "text-embedding-3-small",
+  "auto_reflect": true,
+  "auto_decay": true
+}
