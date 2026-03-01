@@ -1,0 +1,1 @@
+请用终端录屏工具（如 asciinema 或 terminalizer）录制演示 GIF 放在此处
