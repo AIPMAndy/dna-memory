@@ -78,6 +78,20 @@ python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py stats
 
 **零依赖**：只需要 Python 3.8+，不需要安装任何包。
 
+## 🆕 最近更新（2026-03-08）
+
+- ✅ 新增 `compact` 命令：一键压缩长期记忆，清理重复 Pattern。
+- ✅ `reflect` 去重增强：基于 `signature` 避免重复归纳同一批来源记忆。
+- ✅ 兼容历史数据：自动补全旧 Pattern 的 `signature/origin_type`，降低迁移成本。
+- ✅ daemon 节流优化：仅在有新的 `remember` 写入后触发 `reflect`。
+- ✅ daemon 间隔可配置：默认从 `assets/config.json` 读取反思/遗忘周期。
+
+升级后建议执行一次：
+
+```bash
+python3 scripts/evolve.py compact
+```
+
 ## 📖 核心命令
 
 ```bash
@@ -92,6 +106,9 @@ evolve.py reflect
 
 # 遗忘衰减（清理低权重记忆）
 evolve.py decay
+
+# 压缩长期记忆（去重 + 补全旧 Pattern 签名）
+evolve.py compact
 
 # 建立关联
 evolve.py link mem_001 mem_002 -r "因果关系"
@@ -195,7 +212,11 @@ evolve.py export -o backup.json
   "forget_threshold": 0.2, // 低于此权重被遗忘
   "reflect_trigger": 20,   // 积累多少条触发自动反思
   "max_short_term": 100,   // 短期记忆上限
-  "max_long_term": 500     // 长期记忆上限
+  "max_long_term": 500,    // 长期记忆上限
+  "auto_reflect": true,    // 是否允许自动反思
+  "auto_reflect_interval_minutes": 30, // 自动反思最短间隔（分钟）
+  "auto_decay": true,      // 是否允许自动遗忘
+  "auto_decay_interval_hours": 24 // 自动遗忘最短间隔（小时）
 }
 ```
 
