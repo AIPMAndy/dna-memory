@@ -10,6 +10,7 @@ DNA Memory 后台守护进程
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import signal
 import subprocess
@@ -22,10 +23,31 @@ from typing import Optional
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 EVOLVE_SCRIPT = SCRIPT_DIR / "evolve.py"
+CONFIG_FILE = SCRIPT_DIR.parent / "assets" / "config.json"
 DEFAULT_PID_FILE = Path(os.environ.get("DNA_MEMORY_PID_FILE", "/tmp/dna-memory-daemon.pid"))
 DEFAULT_LOG_FILE = Path(os.environ.get("DNA_MEMORY_LOG_FILE", "/tmp/dna-memory-daemon.log"))
 
 RUNNING = True
+
+
+def load_config() -> dict:
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        return {}
+    return {}
+
+
+def load_interval_defaults() -> tuple[float, float]:
+    config = load_config()
+    reflect_minutes = float(config.get("auto_reflect_interval_minutes", 15))
+    decay_hours = float(config.get("auto_decay_interval_hours", 1))
+    return max(reflect_minutes * 60.0, 1.0), max(decay_hours * 3600.0, 1.0)
 
 
 def now_ts() -> str:
@@ -91,6 +113,44 @@ def run_action(action: str, log_file: Path, memory_dir: Optional[str], timeout: 
         return 124
 
 
+def resolve_memory_dir(raw_memory_dir: Optional[str]) -> Path:
+    if raw_memory_dir:
+        return Path(raw_memory_dir).expanduser().resolve()
+    env_dir = os.environ.get("DNA_MEMORY_DIR")
+    if env_dir:
+        return Path(env_dir).expanduser().resolve()
+    return (Path.home() / ".openclaw" / "workspace" / "memory").resolve()
+
+
+def load_memory_meta(memory_dir: Path) -> dict:
+    meta_file = memory_dir / "meta.json"
+    if not meta_file.exists():
+        return {}
+    try:
+        with open(meta_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        return {}
+    return {}
+
+
+def to_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def should_run_reflect(memory_dir: Path) -> bool:
+    meta = load_memory_meta(memory_dir)
+    stats = meta.get("stats", {}) if isinstance(meta.get("stats"), dict) else {}
+    remember_count = to_int(stats.get("remember", 0), 0)
+    last_reflect_remember_count = to_int(meta.get("last_reflect_remember_count", -1), -1)
+    return remember_count > last_reflect_remember_count
+
+
 def cleanup_pid_file(pid_file: Path) -> None:
     pid = read_pid(pid_file)
     if pid == os.getpid() and pid_file.exists():
@@ -113,13 +173,24 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     last_reflect = 0.0
     last_decay = 0.0
+    memory_dir = resolve_memory_dir(args.memory_dir)
+    log_line(
+        log_file,
+        (
+            f"config reflect_interval={args.reflect_interval}s "
+            f"decay_interval={args.decay_interval}s memory_dir={memory_dir}"
+        ),
+    )
 
     try:
         while RUNNING:
             now = time.monotonic()
 
             if last_reflect == 0.0 or now - last_reflect >= args.reflect_interval:
-                run_action("reflect", log_file, args.memory_dir, args.action_timeout)
+                if should_run_reflect(memory_dir):
+                    run_action("reflect", log_file, args.memory_dir, args.action_timeout)
+                else:
+                    log_line(log_file, "reflect skipped: no new remember events since last reflect")
                 last_reflect = now
 
             if last_decay == 0.0 or now - last_decay >= args.decay_interval:
@@ -224,6 +295,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="DNA Memory daemon manager")
     sub = parser.add_subparsers(dest="cmd", required=True)
+    default_reflect_interval, default_decay_interval = load_interval_defaults()
 
     def add_common(p: argparse.ArgumentParser) -> None:
         p.add_argument("--pid-file", default=str(DEFAULT_PID_FILE))
@@ -232,8 +304,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_run = sub.add_parser("run", help="Run daemon loop in foreground")
     add_common(p_run)
-    p_run.add_argument("--reflect-interval", type=float, default=900.0, help="Seconds between reflect runs")
-    p_run.add_argument("--decay-interval", type=float, default=3600.0, help="Seconds between decay runs")
+    p_run.add_argument("--reflect-interval", type=float, default=default_reflect_interval, help="Seconds between reflect runs")
+    p_run.add_argument("--decay-interval", type=float, default=default_decay_interval, help="Seconds between decay runs")
     p_run.add_argument("--poll-interval", type=float, default=2.0, help="Loop sleep seconds")
     p_run.add_argument("--action-timeout", type=float, default=60.0, help="Timeout per action call")
     p_run.add_argument("--once", action="store_true", help="Run one cycle then exit")
@@ -241,8 +313,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_start = sub.add_parser("start", help="Start daemon in background")
     add_common(p_start)
-    p_start.add_argument("--reflect-interval", type=float, default=900.0)
-    p_start.add_argument("--decay-interval", type=float, default=3600.0)
+    p_start.add_argument("--reflect-interval", type=float, default=default_reflect_interval)
+    p_start.add_argument("--decay-interval", type=float, default=default_decay_interval)
     p_start.add_argument("--poll-interval", type=float, default=2.0)
     p_start.add_argument("--action-timeout", type=float, default=60.0)
     p_start.set_defaults(func=cmd_start)

@@ -113,7 +113,20 @@ python3 scripts/evolve.py link <memory_id_1> <memory_id_2> --relation "因果"
 
 建立记忆之间的关联，形成知识图谱。
 
-### 6. 后台常驻 (Daemon)
+### 6. 压缩去重 (Compact)
+
+```bash
+python3 scripts/evolve.py compact
+```
+
+用于一次性清理长期记忆中的重复 pattern，自动补全旧数据缺失的 `signature/origin_type`，降低长期记忆污染。
+
+建议场景：
+- 发现长期记忆被重复模式占满
+- daemon 曾长时间高频运行 reflect
+- 升级到新版 dedupe 逻辑后首次维护
+
+### 7. 后台常驻 (Daemon)
 
 启动（后台）：
 ```bash
@@ -130,7 +143,12 @@ python3 scripts/dna_memory_daemon.py status
 python3 scripts/dna_memory_daemon.py stop
 ```
 
-默认每 15 分钟自动 `reflect`，每 1 小时自动 `decay`，日志写入 `/tmp/dna-memory-daemon.log`。
+默认读取 `assets/config.json` 的节流参数：
+- `auto_reflect_interval_minutes`（默认 30 分钟）
+- `auto_decay_interval_hours`（默认 24 小时）
+
+并且仅在有新的 `remember` 写入后才执行 `reflect`，避免重复归纳同一批记忆。
+日志写入 `/tmp/dna-memory-daemon.log`。
 
 ---
 

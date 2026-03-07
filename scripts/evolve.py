@@ -12,6 +12,7 @@ DNA Memory - 进化式记忆系统
 
 import json
 import os
+import re
 import tempfile
 import time
 import uuid
@@ -139,6 +140,62 @@ def gen_id() -> str:
 def now_iso() -> str:
     """获取当前 ISO 时间"""
     return datetime.now().isoformat()
+
+
+def pattern_signature(memory_type: str, source_ids) -> str:
+    """为模式生成稳定签名，避免重复归纳同一批来源记忆"""
+    normalized_sources = sorted(str(sid) for sid in source_ids)
+    return f"{memory_type}:{'|'.join(normalized_sources)}"
+
+
+def infer_pattern_origin_type(mem: Dict) -> str:
+    """推断旧版 pattern 的来源类型，兼容缺少 origin_type 的历史数据"""
+    origin = str(mem.get("origin_type", "")).strip()
+    if origin in MEMORY_TYPES and origin != "pattern":
+        return origin
+
+    tags = mem.get("tags", [])
+    if isinstance(tags, list):
+        for tag in tags:
+            normalized = str(tag).strip()
+            if normalized in MEMORY_TYPES and normalized != "pattern":
+                return normalized
+
+    content = str(mem.get("content", ""))
+    match = re.match(r"^\[([^\]]+)类模式\]", content)
+    if match:
+        inferred = match.group(1).strip()
+        if inferred in MEMORY_TYPES and inferred != "pattern":
+            return inferred
+
+    return "pattern"
+
+
+def get_pattern_signature(mem: Dict) -> Optional[str]:
+    """读取或补全 pattern 的稳定签名"""
+    signature = mem.get("signature")
+    if signature:
+        return str(signature)
+
+    sources = mem.get("sources", [])
+    if not isinstance(sources, list) or not sources:
+        return None
+
+    origin_type = infer_pattern_origin_type(mem)
+    return pattern_signature(origin_type, sources)
+
+
+def memory_rank(mem: Dict):
+    """用于去重时保留更高质量的记忆版本"""
+    importance = float(mem.get("importance", 0) or 0)
+    access_count = int(mem.get("access_count", 0) or 0)
+    last_accessed = str(mem.get("last_accessed", ""))
+    created_at = str(mem.get("created_at", ""))
+    return (importance, access_count, last_accessed, created_at)
+
+
+def normalize_text(text: str) -> str:
+    return " ".join(str(text).split())
 
 
 def update_meta(action: str, count: int = 1, extra: Optional[Dict] = None):
@@ -287,9 +344,12 @@ def _do_reflect(config: Dict):
     """执行反思归纳逻辑"""
     data = load_json(SHORT_TERM_FILE)
     memories = data.get("memories", [])
+    meta = load_json(META_FILE)
+    remember_count = int(meta.get("stats", {}).get("remember", 0))
     
     if len(memories) < 3:
         print("📝 记忆不足，暂不归纳")
+        update_meta("reflect", 0, {"last_reflect_at": now_iso(), "last_reflect_remember_count": remember_count})
         return 0
     
     # 按类型分组
@@ -298,6 +358,24 @@ def _do_reflect(config: Dict):
         t = mem.get("type", "fact")
         by_type.setdefault(t, []).append(mem)
     
+    lt = load_json(LONG_TERM_FILE)
+    lt_memories = lt.get("memories", [])
+    existing_pattern_signatures = set()
+    existing_ids = set()
+    for mem in lt_memories:
+        mem_id = mem.get("id")
+        if mem_id:
+            existing_ids.add(mem_id)
+        if mem.get("type") == "pattern":
+            signature = get_pattern_signature(mem)
+            if signature and mem.get("signature") != signature:
+                mem["signature"] = signature
+            inferred_origin_type = infer_pattern_origin_type(mem)
+            if inferred_origin_type != "pattern" and mem.get("origin_type") != inferred_origin_type:
+                mem["origin_type"] = inferred_origin_type
+            if signature:
+                existing_pattern_signatures.add(signature)
+
     patterns = []
     promoted = []
     
@@ -311,11 +389,18 @@ def _do_reflect(config: Dict):
             
             theme = " ".join(list(common_words)[:5]) if common_words else t
             
+            sources = [m["id"] for m in mems]
+            signature = pattern_signature(t, sources)
+            if signature in existing_pattern_signatures:
+                continue
+
             pattern = {
                 "id": gen_id(),
                 "type": "pattern",
                 "content": f"[{t}类模式] {theme}: 归纳自 {len(mems)} 条记忆",
-                "sources": [m["id"] for m in mems],
+                "sources": sources,
+                "signature": signature,
+                "origin_type": t,
                 "created_at": now_iso(),
                 "last_accessed": now_iso(),
                 "access_count": 0,
@@ -324,36 +409,46 @@ def _do_reflect(config: Dict):
                 "links": []
             }
             patterns.append(pattern)
+            existing_pattern_signatures.add(signature)
             
             # 高权重记忆升级到长期
             for m in mems:
                 if m.get("importance", 0) >= 0.7:
                     promoted.append(m)
     
-    # 保存归纳的模式
-    if patterns:
-        lt = load_json(LONG_TERM_FILE)
-        lt["memories"].extend(patterns)
-        
-        # 升级高权重记忆
-        for m in promoted:
-            if m["id"] not in [x["id"] for x in lt["memories"]]:
-                lt["memories"].append(m)
-        
-        # 检查长期记忆上限
-        max_lt = config.get("max_long_term", 500)
-        if len(lt["memories"]) > max_lt:
-            lt["memories"].sort(key=lambda x: x.get("importance", 0))
-            lt["memories"] = lt["memories"][-max_lt:]
-        
+    lt_memories.extend(patterns)
+
+    # 升级高权重记忆（仅统计实际新增）
+    promoted_added = 0
+    for m in promoted:
+        mem_id = m.get("id")
+        if mem_id and mem_id not in existing_ids:
+            lt_memories.append(m)
+            existing_ids.add(mem_id)
+            promoted_added += 1
+
+    # 检查长期记忆上限
+    max_lt = config.get("max_long_term", 500)
+    if len(lt_memories) > max_lt:
+        lt_memories.sort(key=lambda x: x.get("importance", 0))
+        lt_memories = lt_memories[-max_lt:]
+
+    if patterns or promoted_added:
+        lt["memories"] = lt_memories
         save_json(LONG_TERM_FILE, lt)
-        print(f"💡 归纳出 {len(patterns)} 个模式，升级 {len(promoted)} 条到长期记忆")
-        update_meta("reflect", len(patterns), {"last_reflect_at": now_iso()})
-        return len(patterns)
+        print(f"💡 归纳出 {len(patterns)} 个新模式，升级 {promoted_added} 条到长期记忆")
     else:
         print("📝 暂未发现新模式")
-        update_meta("reflect", 0, {"last_reflect_at": now_iso()})
-        return 0
+
+    update_meta(
+        "reflect",
+        len(patterns),
+        {
+            "last_reflect_at": now_iso(),
+            "last_reflect_remember_count": remember_count,
+        },
+    )
+    return len(patterns)
 
 
 def cmd_reflect(args):
@@ -502,6 +597,92 @@ def cmd_export(args):
     print(f"📤 已导出到: {output}")
 
 
+def cmd_compact(args):
+    """压缩长期记忆：去重 pattern，补全签名，并按上限裁剪"""
+    config = load_config()
+    lt = load_json(LONG_TERM_FILE)
+    memories = lt.get("memories", [])
+
+    if not memories:
+        print("🗂️ 长期记忆为空，无需压缩")
+        return
+
+    by_id = set()
+    by_pattern_key = {}
+    order = []
+    removed_duplicates = 0
+    filled_signatures = 0
+    fixed_origin_type = 0
+
+    for mem in memories:
+        mem_id = mem.get("id")
+        if mem_id:
+            if mem_id in by_id:
+                removed_duplicates += 1
+                continue
+            by_id.add(mem_id)
+
+        if mem.get("type") != "pattern":
+            order.append(("raw", mem_id or gen_id(), len(order)))
+            by_pattern_key[order[-1]] = mem
+            continue
+
+        signature = get_pattern_signature(mem)
+        if signature and mem.get("signature") != signature:
+            mem["signature"] = signature
+            filled_signatures += 1
+
+        inferred_origin_type = infer_pattern_origin_type(mem)
+        if inferred_origin_type != "pattern" and mem.get("origin_type") != inferred_origin_type:
+            mem["origin_type"] = inferred_origin_type
+            fixed_origin_type += 1
+
+        if signature:
+            key = ("sig", signature)
+        else:
+            key = ("content", normalize_text(mem.get("content", "")))
+
+        if key not in by_pattern_key:
+            by_pattern_key[key] = mem
+            order.append(key)
+            continue
+
+        removed_duplicates += 1
+        if memory_rank(mem) > memory_rank(by_pattern_key[key]):
+            by_pattern_key[key] = mem
+
+    compacted = [by_pattern_key[k] for k in order]
+
+    max_lt = config.get("max_long_term", 500)
+    removed_by_cap = 0
+    if len(compacted) > max_lt:
+        compacted.sort(key=lambda x: x.get("importance", 0))
+        removed_by_cap = len(compacted) - max_lt
+        compacted = compacted[-max_lt:]
+
+    before = len(memories)
+    after = len(compacted)
+    lt["memories"] = compacted
+    save_json(LONG_TERM_FILE, lt)
+
+    update_meta(
+        "compact",
+        removed_duplicates + removed_by_cap,
+        {
+            "last_compact_at": now_iso(),
+            "compact_before": before,
+            "compact_after": after,
+            "compact_filled_signatures": filled_signatures,
+            "compact_fixed_origin_type": fixed_origin_type,
+        },
+    )
+    print(
+        f"🧬 压缩完成: {before} -> {after}，"
+        f"去重 {removed_duplicates}，上限裁剪 {removed_by_cap}，"
+        f"补全签名 {filled_signatures}"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="DNA Memory - 进化式记忆系统",
@@ -512,6 +693,7 @@ def main():
   %(prog)s recall "Andy"
   %(prog)s reflect
   %(prog)s decay
+  %(prog)s compact
   %(prog)s stats
         """
     )
@@ -567,6 +749,10 @@ def main():
     p = sub.add_parser("export", help="导出记忆")
     p.add_argument("--output", "-o", help="输出文件名")
     p.set_defaults(func=cmd_export)
+
+    # compact
+    p = sub.add_parser("compact", help="压缩长期记忆并清理重复 pattern")
+    p.set_defaults(func=cmd_compact)
     
     args = parser.parse_args()
     if hasattr(args, "func"):
