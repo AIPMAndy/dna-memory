@@ -141,6 +141,12 @@ def now_iso() -> str:
     return datetime.now().isoformat()
 
 
+def pattern_signature(memory_type: str, source_ids) -> str:
+    """为模式生成稳定签名，避免重复归纳同一批来源记忆"""
+    normalized_sources = sorted(str(sid) for sid in source_ids)
+    return f"{memory_type}:{'|'.join(normalized_sources)}"
+
+
 def update_meta(action: str, count: int = 1, extra: Optional[Dict] = None):
     """更新元数据统计"""
     meta = load_json(META_FILE)
@@ -287,9 +293,12 @@ def _do_reflect(config: Dict):
     """执行反思归纳逻辑"""
     data = load_json(SHORT_TERM_FILE)
     memories = data.get("memories", [])
+    meta = load_json(META_FILE)
+    remember_count = int(meta.get("stats", {}).get("remember", 0))
     
     if len(memories) < 3:
         print("📝 记忆不足，暂不归纳")
+        update_meta("reflect", 0, {"last_reflect_at": now_iso(), "last_reflect_remember_count": remember_count})
         return 0
     
     # 按类型分组
@@ -298,6 +307,21 @@ def _do_reflect(config: Dict):
         t = mem.get("type", "fact")
         by_type.setdefault(t, []).append(mem)
     
+    lt = load_json(LONG_TERM_FILE)
+    lt_memories = lt.get("memories", [])
+    existing_pattern_signatures = set()
+    existing_ids = set()
+    for mem in lt_memories:
+        mem_id = mem.get("id")
+        if mem_id:
+            existing_ids.add(mem_id)
+        if mem.get("type") == "pattern":
+            signature = mem.get("signature")
+            if not signature and mem.get("sources"):
+                signature = pattern_signature(mem.get("origin_type", "pattern"), mem.get("sources", []))
+            if signature:
+                existing_pattern_signatures.add(signature)
+
     patterns = []
     promoted = []
     
@@ -311,11 +335,18 @@ def _do_reflect(config: Dict):
             
             theme = " ".join(list(common_words)[:5]) if common_words else t
             
+            sources = [m["id"] for m in mems]
+            signature = pattern_signature(t, sources)
+            if signature in existing_pattern_signatures:
+                continue
+
             pattern = {
                 "id": gen_id(),
                 "type": "pattern",
                 "content": f"[{t}类模式] {theme}: 归纳自 {len(mems)} 条记忆",
-                "sources": [m["id"] for m in mems],
+                "sources": sources,
+                "signature": signature,
+                "origin_type": t,
                 "created_at": now_iso(),
                 "last_accessed": now_iso(),
                 "access_count": 0,
@@ -324,36 +355,46 @@ def _do_reflect(config: Dict):
                 "links": []
             }
             patterns.append(pattern)
+            existing_pattern_signatures.add(signature)
             
             # 高权重记忆升级到长期
             for m in mems:
                 if m.get("importance", 0) >= 0.7:
                     promoted.append(m)
     
-    # 保存归纳的模式
-    if patterns:
-        lt = load_json(LONG_TERM_FILE)
-        lt["memories"].extend(patterns)
-        
-        # 升级高权重记忆
-        for m in promoted:
-            if m["id"] not in [x["id"] for x in lt["memories"]]:
-                lt["memories"].append(m)
-        
-        # 检查长期记忆上限
-        max_lt = config.get("max_long_term", 500)
-        if len(lt["memories"]) > max_lt:
-            lt["memories"].sort(key=lambda x: x.get("importance", 0))
-            lt["memories"] = lt["memories"][-max_lt:]
-        
+    lt_memories.extend(patterns)
+
+    # 升级高权重记忆（仅统计实际新增）
+    promoted_added = 0
+    for m in promoted:
+        mem_id = m.get("id")
+        if mem_id and mem_id not in existing_ids:
+            lt_memories.append(m)
+            existing_ids.add(mem_id)
+            promoted_added += 1
+
+    # 检查长期记忆上限
+    max_lt = config.get("max_long_term", 500)
+    if len(lt_memories) > max_lt:
+        lt_memories.sort(key=lambda x: x.get("importance", 0))
+        lt_memories = lt_memories[-max_lt:]
+
+    if patterns or promoted_added:
+        lt["memories"] = lt_memories
         save_json(LONG_TERM_FILE, lt)
-        print(f"💡 归纳出 {len(patterns)} 个模式，升级 {len(promoted)} 条到长期记忆")
-        update_meta("reflect", len(patterns), {"last_reflect_at": now_iso()})
-        return len(patterns)
+        print(f"💡 归纳出 {len(patterns)} 个新模式，升级 {promoted_added} 条到长期记忆")
     else:
         print("📝 暂未发现新模式")
-        update_meta("reflect", 0, {"last_reflect_at": now_iso()})
-        return 0
+
+    update_meta(
+        "reflect",
+        len(patterns),
+        {
+            "last_reflect_at": now_iso(),
+            "last_reflect_remember_count": remember_count,
+        },
+    )
+    return len(patterns)
 
 
 def cmd_reflect(args):
