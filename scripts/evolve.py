@@ -1,573 +1,267 @@
 #!/usr/bin/env python3
 """
-DNA Memory - 进化式记忆系统
+DNA Memory - 核心模块
+让 AI Agent 像人脑一样学习和成长
 
-让 AI Agent 像人脑一样学习和成长：
+功能：
 - 三层记忆架构（工作/短期/长期）
-- 主动遗忘机制
-- 自动归纳模式
-- 反思循环
-- 知识图谱关联
+- 智能遗忘机制（权重衰减 + 自动清理）
+- 记忆关联（自动建立关系）
+- 语义搜索支持
 """
 
 import json
-import os
-import sys
-import uuid
-import argparse
-from datetime import datetime, timedelta
+import sqlite3
+import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
+import argparse
+import re
 
-# 路径配置
-SKILL_DIR = Path(__file__).parent.parent
-MEMORY_DIR = Path.home() / ".openclaw" / "workspace" / "memory"
-CONFIG_FILE = SKILL_DIR / "assets" / "config.json"
+# ============ 配置 ============
+MEMORY_DIR = Path(__file__).parent.parent / "memory"
+MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = MEMORY_DIR / "memory.db"
+WORKING_MEMORY_FILE = MEMORY_DIR / "working.json"
 
-SHORT_TERM_FILE = MEMORY_DIR / "short_term.json"
-LONG_TERM_FILE = MEMORY_DIR / "long_term.json"
-PATTERNS_FILE = MEMORY_DIR / "patterns.md"
-GRAPH_FILE = MEMORY_DIR / "graph.json"
-META_FILE = MEMORY_DIR / "meta.json"
+# 记忆配置
+WORKING_MEMORY_MAX = 7  # 工作记忆容量
+FORGET_THRESHOLD = 0.25  # 遗忘阈值
+DECAY_FACTOR = 0.95  # 衰减因子
+SHORT_TERM_CAPACITY = 100  # 短期记忆容量
+AUTO_LINK_SIMILARITY = 0.7  # 自动关联相似度阈值
 
-MEMORY_TYPES = ["fact", "preference", "skill", "error", "pattern", "insight"]
-
-# 默认配置
-DEFAULT_CONFIG = {
-    "decay_days": 7,
-    "decay_rate": 0.1,
-    "forget_threshold": 0.2,
-    "reflect_trigger": 20,
-    "max_short_term": 100,
-    "max_long_term": 500,
-    "auto_reflect": True,
-    "auto_decay": True
-}
+# 记忆类型
+TYPES = ["fact", "preference", "skill", "error", "pattern", "insight"]
 
 
-def load_config() -> Dict:
-    """加载配置文件"""
-    if CONFIG_FILE.exists():
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                config = json.load(f)
-                return {**DEFAULT_CONFIG, **config}
-        except:
-            pass
-    return DEFAULT_CONFIG
-
-
-def ensure_dirs():
-    """确保目录存在"""
-    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def load_json(path: Path) -> Dict:
-    """加载 JSON 文件"""
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return {"memories": []}
-    return {"memories": []}
-
-
-def save_json(path: Path, data: Dict):
-    """保存 JSON 文件"""
-    ensure_dirs()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def gen_id() -> str:
-    """生成唯一 ID"""
-    return f"mem_{uuid.uuid4().hex[:8]}"
-
-
-def now_iso() -> str:
-    """获取当前 ISO 时间"""
-    return datetime.now().isoformat()
-
-
-def update_meta(action: str, count: int = 1):
-    """更新元数据统计"""
-    meta = load_json(META_FILE)
-    if "stats" not in meta:
-        meta["stats"] = {}
-    if action not in meta["stats"]:
-        meta["stats"][action] = 0
-    meta["stats"][action] += count
-    meta["last_action"] = action
-    meta["last_updated"] = now_iso()
-    save_json(META_FILE, meta)
-
-
-def check_auto_actions(config: Dict):
-    """检查是否需要自动执行反思或遗忘"""
-    if config.get("auto_reflect"):
-        st = load_json(SHORT_TERM_FILE)
-        if len(st.get("memories", [])) >= config.get("reflect_trigger", 20):
-            print("💭 自动触发反思...")
-            _do_reflect(config)
-
-
-def cmd_remember(args):
-    """记录新记忆"""
-    config = load_config()
+# ============ 数据库初始化 ============
+def init_db():
+    """初始化数据库"""
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
     
-    memory = {
-        "id": gen_id(),
-        "type": args.type,
-        "content": args.content,
-        "source": getattr(args, 'source', 'user'),
-        "importance": min(max(args.importance, 0), 1),
-        "created_at": now_iso(),
-        "last_accessed": now_iso(),
-        "access_count": 0,
-        "tags": getattr(args, 'tags', '').split(',') if getattr(args, 'tags', '') else [],
-        "links": []
-    }
+    # 主记忆表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content TEXT NOT NULL,
+            type TEXT DEFAULT 'fact',
+            tags TEXT DEFAULT '',
+            weight REAL DEFAULT 0.5,
+            short_term INTEGER DEFAULT 1,
+            long_term INTEGER DEFAULT 0,
+            created REAL DEFAULT (strftime('%s', 'now')),
+            updated REAL DEFAULT (strftime('%s', 'now'))
+        )
+    """)
     
-    data = load_json(SHORT_TERM_FILE)
+    # 记忆关联表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS memory_relations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id1 INTEGER,
+            memory_id2 INTEGER,
+            relation_type TEXT DEFAULT 'related',
+            weight REAL DEFAULT 0.5,
+            created REAL DEFAULT (strftime('%s', 'now')),
+            FOREIGN KEY (memory_id1) REFERENCES memory(id),
+            FOREIGN KEY (memory_id2) REFERENCES memory(id)
+        )
+    """)
     
-    # 检查是否超过上限
-    if len(data.get("memories", [])) >= config.get("max_short_term", 100):
-        # 移除最旧的低权重记忆
-        data["memories"].sort(key=lambda x: (x["importance"], x["last_accessed"]))
-        data["memories"] = data["memories"][1:]
+    # 操作日志
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS operations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            operation TEXT,
+            details TEXT,
+            timestamp REAL DEFAULT (strftime('%s', 'now'))
+        )
+    """)
     
-    data["memories"].append(memory)
-    save_json(SHORT_TERM_FILE, data)
-    update_meta("remember")
-    
-    print(f"✅ 已记录: [{memory['id']}] {args.content[:50]}...")
-    
-    # 检查自动操作
-    check_auto_actions(config)
+    conn.commit()
+    return conn
 
 
-def cmd_recall(args):
-    """回忆相关记忆"""
-    results = []
-    query = args.query.lower()
-    
-    for file in [SHORT_TERM_FILE, LONG_TERM_FILE]:
-        data = load_json(file)
-        for mem in data.get("memories", []):
-            content = mem.get("content", "").lower()
-            tags = " ".join(mem.get("tags", [])).lower()
-            
-            if query in content or query in tags:
-                # 更新访问信息
-                mem["last_accessed"] = now_iso()
-                mem["access_count"] = mem.get("access_count", 0) + 1
-                mem["importance"] = min(mem.get("importance", 0.5) + 0.1, 1.0)
-                results.append((mem, file))
-        save_json(file, data)
-    
-    # 按重要性排序
-    results.sort(key=lambda x: x[0].get("importance", 0), reverse=True)
-    
-    if not results:
-        print(f"🔍 未找到与 '{args.query}' 相关的记忆")
-        return
-    
-    update_meta("recall")
-    
-    for mem, source in results[:args.limit]:
-        source_tag = "短期" if "short" in str(source) else "长期"
-        importance = mem.get("importance", 0)
-        print(f"[{mem['id']}] ({mem['type']}) [{source_tag}] {mem['content'][:60]}... [{importance:.2f}]")
+def get_db():
+    """获取数据库连接"""
+    return init_db()
 
 
-def _do_reflect(config: Dict):
-    """执行反思归纳逻辑"""
-    data = load_json(SHORT_TERM_FILE)
-    memories = data.get("memories", [])
-    
-    if len(memories) < 3:
-        print("📝 记忆不足，暂不归纳")
-        return 0
-    
-    # 按类型分组
-    by_type = {}
-    for mem in memories:
-        t = mem.get("type", "fact")
-        by_type.setdefault(t, []).append(mem)
-    
-    patterns = []
-    promoted = []
-    
-    for t, mems in by_type.items():
-        if len(mems) >= 3:
-            # 提取共同主题
-            contents = [m["content"] for m in mems]
-            common_words = set(contents[0].split())
-            for c in contents[1:]:
-                common_words &= set(c.split())
-            
-            theme = " ".join(list(common_words)[:5]) if common_words else t
-            
-            pattern = {
-                "id": gen_id(),
-                "type": "pattern",
-                "content": f"[{t}类模式] {theme}: 归纳自 {len(mems)} 条记忆",
-                "sources": [m["id"] for m in mems],
-                "created_at": now_iso(),
-                "last_accessed": now_iso(),
-                "access_count": 0,
-                "importance": 0.8,
-                "tags": [t, "pattern"],
-                "links": []
-            }
-            patterns.append(pattern)
-            
-            # 高权重记忆升级到长期
-            for m in mems:
-                if m.get("importance", 0) >= 0.7:
-                    promoted.append(m)
-    
-    # 保存归纳的模式
-    if patterns:
-        lt = load_json(LONG_TERM_FILE)
-        lt["memories"].extend(patterns)
-        
-        # 升级高权重记忆
-        for m in promoted:
-            if m["id"] not in [x["id"] for x in lt["memories"]]:
-                lt["memories"].append(m)
-        
-        # 检查长期记忆上限
-        max_lt = config.get("max_long_term", 500)
-        if len(lt["memories"]) > max_lt:
-            lt["memories"].sort(key=lambda x: x.get("importance", 0))
-            lt["memories"] = lt["memories"][-max_lt:]
-        
-        save_json(LONG_TERM_FILE, lt)
-        print(f"💡 归纳出 {len(patterns)} 个模式，升级 {len(promoted)} 条到长期记忆")
-        update_meta("reflect", len(patterns))
-        return len(patterns)
-    else:
-        print("📝 暂未发现新模式")
-        return 0
-
-
-def cmd_reflect(args):
-    """反思归纳"""
-    config = load_config()
-    _do_reflect(config)
-
-
-def cmd_decay(args):
-    """遗忘衰减"""
-    config = load_config()
-    data = load_json(SHORT_TERM_FILE)
-    now = datetime.now()
-    kept, forgotten = [], []
-    
-    decay_days = config.get("decay_days", 7)
-    decay_rate = config.get("decay_rate", 0.1)
-    threshold = config.get("forget_threshold", 0.2)
-    
-    for mem in data.get("memories", []):
-        try:
-            last = datetime.fromisoformat(mem.get("last_accessed", mem.get("created_at", now_iso())))
-            days = (now - last).days
-            
-            if days >= decay_days:
-                mem["importance"] = mem.get("importance", 0.5) - decay_rate
-                if mem["importance"] < threshold:
-                    forgotten.append(mem)
-                    continue
-            kept.append(mem)
-        except:
-            kept.append(mem)
-    
-    data["memories"] = kept
-    save_json(SHORT_TERM_FILE, data)
-    update_meta("decay", len(forgotten))
-    print(f"🧹 遗忘 {len(forgotten)} 条，保留 {len(kept)} 条")
-
-
-def cmd_link(args):
-    """建立关联"""
-    graph = load_json(GRAPH_FILE)
-    if "links" not in graph:
-        graph["links"] = []
-    
-    # 检查是否已存在
-    for link in graph["links"]:
-        if link["from"] == args.id1 and link["to"] == args.id2:
-            print(f"⚠️ 关联已存在")
-            return
-    
-    graph["links"].append({
-        "from": args.id1,
-        "to": args.id2,
-        "relation": args.relation,
-        "created_at": now_iso()
-    })
-    save_json(GRAPH_FILE, graph)
-    update_meta("link")
-    print(f"🔗 已关联: {args.id1} --[{args.relation}]--> {args.id2}")
-
-
-def cmd_stats(args):
-    """统计信息"""
-    st = load_json(SHORT_TERM_FILE)
-    lt = load_json(LONG_TERM_FILE)
-    graph = load_json(GRAPH_FILE)
-    meta = load_json(META_FILE)
-    
-    st_count = len(st.get("memories", []))
-    lt_count = len(lt.get("memories", []))
-    link_count = len(graph.get("links", []))
-    
-    print("📊 DNA Memory 统计")
-    print(f"   短期记忆: {st_count} 条")
-    print(f"   长期记忆: {lt_count} 条")
-    print(f"   记忆关联: {link_count} 条")
-    
-    if meta.get("stats"):
-        print("\n📈 操作统计")
-        for k, v in meta["stats"].items():
-            print(f"   {k}: {v} 次")
-    
-    if meta.get("last_updated"):
-        print(f"\n🕐 最后更新: {meta['last_updated'][:19]}")
-
-
-def cmd_list(args):
-    """列出记忆"""
-    file = LONG_TERM_FILE if args.long_term else SHORT_TERM_FILE
-    data = load_json(file)
-    memories = data.get("memories", [])
-    
-    if args.type:
-        memories = [m for m in memories if m.get("type") == args.type]
-    
-    # 按重要性排序
-    memories.sort(key=lambda x: x.get("importance", 0), reverse=True)
-    
-    source = "长期" if args.long_term else "短期"
-    print(f"📋 {source}记忆列表 ({len(memories)} 条)")
-    
-    for mem in memories[:args.limit]:
-        importance = mem.get("importance", 0)
-        print(f"  [{mem['id']}] ({mem['type']}) {mem['content'][:50]}... [{importance:.2f}]")
-
-
-def cmd_delete(args):
-    """删除记忆"""
-    deleted = False
-    
-    for file in [SHORT_TERM_FILE, LONG_TERM_FILE]:
-        data = load_json(file)
-        original_count = len(data.get("memories", []))
-        data["memories"] = [m for m in data.get("memories", []) if m["id"] != args.id]
-        
-        if len(data["memories"]) < original_count:
-            save_json(file, data)
-            deleted = True
-            print(f"🗑️ 已删除: {args.id}")
-            break
-    
-    if not deleted:
-        print(f"⚠️ 未找到: {args.id}")
-
-
-def cmd_export(args):
-    """导出记忆"""
-    export_data = {
-        "exported_at": now_iso(),
-        "short_term": load_json(SHORT_TERM_FILE),
-        "long_term": load_json(LONG_TERM_FILE),
-        "graph": load_json(GRAPH_FILE)
-    }
-    
-    output = args.output or f"dna_memory_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    with open(output, "w", encoding="utf-8") as f:
-        json.dump(export_data, f, ensure_ascii=False, indent=2)
-    
-    print(f"📤 已导出到: {output}")
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="DNA Memory - 进化式记忆系统",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-示例:
-  %(prog)s remember "Andy喜欢简洁回复" -t preference -i 0.9
-  %(prog)s recall "Andy"
-  %(prog)s reflect
-  %(prog)s decay
-  %(prog)s stats
-        """
-    )
-    sub = parser.add_subparsers(dest="cmd", help="可用命令")
-    
-    # remember
-    p = sub.add_parser("remember", help="记录新记忆")
-    p.add_argument("content", help="记忆内容")
-    p.add_argument("--type", "-t", default="fact", choices=MEMORY_TYPES, help="记忆类型")
-    p.add_argument("--source", "-s", default="user", help="来源")
-    p.add_argument("--importance", "-i", type=float, default=0.5, help="重要性 (0-1)")
-    p.add_argument("--tags", help="标签，逗号分隔")
-    p.set_defaults(func=cmd_remember)
-    
-    # recall
-    p = sub.add_parser("recall", help="回忆相关记忆")
-    p.add_argument("query", help="查询关键词")
-    p.add_argument("--limit", "-l", type=int, default=5, help="返回数量上限")
-    p.set_defaults(func=cmd_recall)
-    
-    # reflect
-    p = sub.add_parser("reflect", help="反思归纳")
-    p.set_defaults(func=cmd_reflect)
-    
-    # decay
-    p = sub.add_parser("decay", help="遗忘衰减")
-    p.set_defaults(func=cmd_decay)
-    
-    # link
-    p = sub.add_parser("link", help="建立记忆关联")
-    p.add_argument("id1", help="记忆 ID 1")
-    p.add_argument("id2", help="记忆 ID 2")
-    p.add_argument("--relation", "-r", default="related", help="关联类型")
-    p.set_defaults(func=cmd_link)
-    
-    # stats
-    p = sub.add_parser("stats", help="查看统计")
-    p.set_defaults(func=cmd_stats)
-    
-    # list
-    p = sub.add_parser("list", help="列出记忆")
-    p.add_argument("--type", "-t", choices=MEMORY_TYPES, help="按类型过滤")
-    p.add_argument("--long-term", "-L", action="store_true", help="列出长期记忆")
-    p.add_argument("--limit", "-l", type=int, default=10, help="返回数量上限")
-    p.set_defaults(func=cmd_list)
-    
-    # delete
-    p = sub.add_parser("delete", help="删除记忆")
-    p.add_argument("id", help="记忆 ID")
-    p.set_defaults(func=cmd_delete)
-    
-    # export
-    p = sub.add_parser("export", help="导出记忆")
-    p.add_argument("--output", "-o", help="输出文件名")
-    p.set_defaults(func=cmd_export)
-    
-    args = parser.parse_args()
-    if hasattr(args, "func"):
-        args.func(args)
-    else:
-        parser.print_help()
-
-
-# ============== P0: 工作记忆 (5-7条) ==============
-WORKING_MEMORY_FILE = Path(__file__).parent.parent / "memory" / "working.json"
-
+# ============ 工作记忆 ============
 def load_working_memory():
+    """加载工作记忆"""
     if WORKING_MEMORY_FILE.exists():
-        return json.loads(WORKING_MEMORY_FILE.read_text())
+        try:
+            return json.loads(WORKING_MEMORY_FILE.read_text())
+        except:
+            return []
     return []
 
-def save_working_memory(mem):
-    WORKING_MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    WORKING_MEMORY_FILE.write_text(json.dumps(mem, ensure_ascii=False, indent=2))
+
+def save_working_memory(memories):
+    """保存工作记忆"""
+    WORKING_MEMORY_FILE.write_text(json.dumps(memories, ensure_ascii=False))
+
 
 def add_working_memory(content, importance=0.8):
-    """添加到工作记忆（最多7条）"""
-    mem = load_working_memory()
+    """添加到工作记忆"""
+    memories = load_working_memory()
+    
     # 检查是否已存在
-    for m in mem:
-        if m["content"] == content:
+    for m in memories:
+        if m.get("content") == content:
             m["importance"] = importance
-            m["last_access"] = time.time()
+            m["updated"] = time.time()
             break
     else:
-        mem.append({
+        # 添加新记忆
+        memories.insert(0, {
             "content": content,
             "importance": importance,
             "created": time.time(),
-            "last_access": time.time()
+            "updated": time.time()
         })
     
-    # 保持最多7条，按重要性排序
-    mem.sort(key=lambda x: x["importance"], reverse=True)
-    mem = mem[:7]
-    save_working_memory(mem)
-    return mem
+    # 保持容量限制（按重要性排序）
+    memories.sort(key=lambda x: x.get("importance", 0), reverse=True)
+    memories = memories[:WORKING_MEMORY_MAX]
+    
+    save_working_memory(memories)
+    log_operation("working_add", content)
+    return memories
+
 
 def get_working_memory():
     """获取工作记忆"""
-    mem = load_working_memory()
-    # 更新最后访问时间
-    for m in mem:
-        m["last_access"] = time.time()
-    save_working_memory(mem)
-    return mem
+    return load_working_memory()
+
 
 def clear_working_memory():
     """清空工作记忆"""
     save_working_memory([])
+    log_operation("working_clear", "")
+    return []
 
-# ============== P0: 自动遗忘机制 ==============
-FORGET_THRESHOLD = 0.25  # 低于此权重自动删除
 
-def auto_forget():
+# ============ 核心记忆操作 ============
+def add_memory(content, mem_type="fact", tags="", importance=0.6, short_term=1, long_term=0):
+    """添加记忆"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    now = time.time()
+    cursor.execute("""
+        INSERT INTO memory (content, type, tags, weight, short_term, long_term, created, updated)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (content, mem_type, tags, importance, short_term, long_term, now, now))
+    
+    memory_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    log_operation("remember", f"{mem_type}: {content[:50]}")
+    return memory_id
+
+
+def search_memories(query, limit=10):
+    """搜索记忆"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, content, type, tags, weight 
+        FROM memory 
+        WHERE content LIKE ? OR tags LIKE ?
+        ORDER BY weight DESC, updated DESC
+        LIMIT ?
+    """, (f"%{query}%", f"%{query}%", limit))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            "id": row[0],
+            "content": row[1],
+            "type": row[2],
+            "tags": row[3],
+            "weight": row[4]
+        })
+    
+    conn.close()
+    return results
+
+
+def get_memories_by_type(mem_type, limit=50):
+    """按类型获取记忆"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, content, tags, weight, created
+        FROM memory 
+        WHERE type = ?
+        ORDER BY weight DESC
+        LIMIT ?
+    """, (mem_type, limit))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            "id": row[0],
+            "content": row[1],
+            "tags": row[2],
+            "weight": row[3],
+            "created": row[4]
+        })
+    
+    conn.close()
+    return results
+
+
+# ============ 遗忘机制 ============
+def auto_forget(threshold=FORGET_THRESHOLD):
     """自动遗忘低权重记忆"""
     conn = get_db()
     cursor = conn.cursor()
     
-    # 找出低于阈值的记忆
-    cursor.execute("SELECT id, weight FROM memory WHERE weight < ?", (FORGET_THRESHOLD,))
-    to_delete = cursor.fetchall()
-    
-    count = 0
-    for row in to_delete:
-        cursor.execute("DELETE FROM memory WHERE id = ?", (row[0],))
-        count += 1
+    # 删除低权重记忆
+    cursor.execute("DELETE FROM memory WHERE weight < ?", (threshold,))
+    deleted = cursor.rowcount
     
     conn.commit()
     conn.close()
-    return count
+    
+    log_operation("forget", f"deleted {deleted} memories")
+    return deleted
 
-def auto_decay():
-    """运行衰减 + 自动遗忘"""
-    # 先执行衰减
+
+def auto_decay(factor=DECAY_FACTOR):
+    """权重衰减"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE memory SET weight = weight * 0.95, updated = ?", (time.time(),))
-    conn.commit()
     
-    # 统计
-    cursor.execute("SELECT COUNT(*) FROM memory WHERE weight < ?", (FORGET_THRESHOLD,))
-    low_weight_count = cursor.fetchone()[0]
+    # 衰减所有记忆权重
+    cursor.execute("UPDATE memory SET weight = weight * ?", (factor,))
+    updated = cursor.rowcount
+    
+    conn.commit()
     conn.close()
     
-    # 自动删除
-    deleted = auto_forget()
-    
-    return {
-        "decayed": cursor.rowcount,
-        "forgotten": deleted,
-        "remaining_low": low_weight_count - deleted
-    }
+    log_operation("decay", f"decayed {updated} memories")
+    return updated
 
-# ============== P1: 自动关联 ==============
+
+# ============ 记忆关联 ============
 def auto_link_memories():
     """自动建立记忆关联"""
     conn = get_db()
     cursor = conn.cursor()
     
-    # 获取所有记忆
-    cursor.execute("SELECT id, content, tags FROM memory WHERE long_term = 1")
+    # 获取所有标签
+    cursor.execute("SELECT id, content, tags FROM memory WHERE tags IS NOT NULL AND tags != ''")
     memories = cursor.fetchall()
     
-    # 简单关联：相同标签的自动关联
     links_created = 0
     for i, (id1, content1, tags1) in enumerate(memories):
         for id2, content2, tags2 in memories[i+1:]:
@@ -579,11 +273,13 @@ def auto_link_memories():
             if cursor.fetchone():
                 continue
             
-            # 简单规则：相同标签 or 内容相似
+            # 相同标签建立关联
             if tags1 and tags2:
                 tags_set1 = set(tags1.split(","))
                 tags_set2 = set(tags2.split(","))
-                if tags_set1 & tags_set2:  # 有共同标签
+                common = tags_set1 & tags_set2
+                
+                if common:
                     cursor.execute("""
                         INSERT INTO memory_relations (memory_id1, memory_id2, relation_type, weight)
                         VALUES (?, ?, 'same_tag', 0.8)
@@ -592,7 +288,228 @@ def auto_link_memories():
     
     conn.commit()
     conn.close()
+    
+    log_operation("link", f"created {links_created} links")
     return links_created
+
+
+def get_related_memories(memory_id, limit=5):
+    """获取关联记忆"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT m.id, m.content, m.type, m.weight, r.relation_type, r.weight as rel_weight
+        FROM memory_relations r
+        JOIN memory m ON (m.id = r.memory_id2 OR m.id = r.memory_id1)
+        WHERE (r.memory_id1 = ? OR r.memory_id2 = ?) AND m.id != ?
+        ORDER BY r.weight DESC
+        LIMIT ?
+    """, (memory_id, memory_id, memory_id, limit))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            "id": row[0],
+            "content": row[1],
+            "type": row[2],
+            "weight": row[3],
+            "relation_type": row[4],
+            "relation_weight": row[5]
+        })
+    
+    conn.close()
+    return results
+
+
+# ============ 统计 ============
+def get_stats():
+    """获取统计信息"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    stats = {}
+    
+    cursor.execute("SELECT COUNT(*) FROM memory")
+    stats["total"] = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*) FROM memory WHERE short_term = 1")
+    stats["short_term"] = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*) FROM memory WHERE long_term = 1")
+    stats["long_term"] = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*) FROM memory_relations")
+    stats["relations"] = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT AVG(weight) FROM memory")
+    stats["avg_weight"] = round(cursor.fetchone()[0] or 0, 3)
+    
+    # 操作统计
+    cursor.execute("""
+        SELECT operation, COUNT(*) 
+        FROM operations 
+        GROUP BY operation
+    """)
+    stats["operations"] = dict(cursor.fetchall())
+    
+    conn.close()
+    return stats
+
+
+def log_operation(operation, details):
+    """记录操作日志"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO operations (operation, details) VALUES (?, ?)
+    """, (operation, details))
+    conn.commit()
+    conn.close()
+
+
+# ============ CLI 命令 ============
+def cmd_remember(args):
+    """记录记忆"""
+    content = " ".join(args.content)
+    mem_type = args.type or "fact"
+    tags = args.tags or ""
+    importance = float(args.importance or 0.6)
+    
+    add_memory(content, mem_type, tags, importance)
+    print(f"✅ 已记录: {content[:50]} [{mem_type}: {importance}]")
+
+
+def cmd_recall(args):
+    """搜索记忆"""
+    results = search_memories(args.query, limit=args.limit)
+    
+    if not results:
+        print(f"❌ 没有找到: {args.query}")
+        return
+    
+    print(f"🔍 找到 {len(results)} 条:")
+    for r in results:
+        print(f"   [{r['weight']:.2f}] {r['content'][:60]}")
+
+
+def cmd_stats(args):
+    """显示统计"""
+    stats = get_stats()
+    
+    print("=" * 40)
+    print("🧬 DNA Memory 统计")
+    print("=" * 40)
+    print(f"   总记忆: {stats['total']}")
+    print(f"   短期记忆: {stats['short_term']}")
+    print(f"   长期记忆: {stats['long_term']}")
+    print(f"   记忆关联: {stats['relations']}")
+    print(f"   平均权重: {stats['avg_weight']}")
+    print("\n📈 操作统计:")
+    for op, count in stats.get("operations", {}).items():
+        print(f"   {op}: {count}")
+    print("=" * 40)
+
+
+def cmd_working(args):
+    """工作记忆操作"""
+    if args.clear:
+        clear_working_memory()
+        print("🗑️ 已清空工作记忆")
+        return
+    
+    if args.content:
+        add_working_memory(args.content, float(args.importance or 0.8))
+        print(f"✅ 已添加到工作记忆: {args.content[:50]}")
+    else:
+        mems = get_working_memory()
+        print(f"📌 工作记忆 ({len(mems)}/{WORKING_MEMORY_MAX}):")
+        for i, m in enumerate(mems, 1):
+            print(f"   {i}. {m['content'][:50]} [⭐{m.get('importance', 0):.1f}]")
+
+
+def cmd_forget(args):
+    """遗忘操作"""
+    deleted = auto_forget(float(args.threshold or FORGET_THRESHOLD))
+    print(f"🗑️ 已删除 {deleted} 条低权重记忆")
+
+
+def cmd_decay(args):
+    """衰减操作"""
+    factor = float(args.factor or DECAY_FACTOR)
+    updated = auto_decay(factor)
+    print(f"📉 已衰减 {updated} 条记忆权重 (×{factor})")
+
+
+def cmd_link(args):
+    """关联操作"""
+    links = auto_link_memories()
+    print(f"🔗 已创建 {links} 个记忆关联")
+
+
+# ============ 主函数 ============
+def main():
+    parser = argparse.ArgumentParser(description="DNA Memory 核心程序")
+    subparsers = parser.add_subparsers(dest="command", help="子命令")
+    
+    # remember
+    p_remember = subparsers.add_parser("remember", help="记录记忆")
+    p_remember.add_argument("content", nargs="+", help="记忆内容")
+    p_remember.add_argument("-t", "--type", choices=TYPES, default="fact", help="记忆类型")
+    p_remember.add_argument("--tags", default="", help="标签")
+    p_remember.add_argument("-i", "--importance", default="0.6", help="重要性 (0-1)")
+    
+    # recall
+    p_recall = subparsers.add_parser("recall", help="搜索记忆")
+    p_recall.add_argument("query", help="搜索关键词")
+    p_recall.add_argument("-l", "--limit", type=int, default=10, help="返回数量")
+    
+    # stats
+    subparsers.add_parser("stats", help="显示统计")
+    
+    # working
+    p_working = subparsers.add_parser("working", help="工作记忆")
+    p_working.add_argument("content", nargs="?", help="记忆内容")
+    p_working.add_argument("-i", "--importance", default="0.8", help="重要性")
+    p_working.add_argument("--clear", action="store_true", help="清空工作记忆")
+    
+    # forget
+    p_forget = subparsers.add_parser("forget", help="自动遗忘")
+    p_forget.add_argument("-t", "--threshold", default=str(FORGET_THRESHOLD), help="遗忘阈值")
+    
+    # decay
+    p_decay = subparsers.add_parser("decay", help="权重衰减")
+    p_decay.add_argument("-f", "--factor", default=str(DECAY_FACTOR), help="衰减因子")
+    
+    # link
+    subparsers.add_parser("link", help="建立记忆关联")
+    
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        print("\n示例:")
+        print("  python3 evolve.py remember 我喜欢简洁的回复 -t preference -i 0.9")
+        print("  python3 evolve.py recall 偏好")
+        print("  python3 evolve.py stats")
+        print("  python3 evolve.py working")
+        return
+    
+    # 执行命令
+    if args.command == "remember":
+        cmd_remember(args)
+    elif args.command == "recall":
+        cmd_recall(args)
+    elif args.command == "stats":
+        cmd_stats(args)
+    elif args.command == "working":
+        cmd_working(args)
+    elif args.command == "forget":
+        cmd_forget(args)
+    elif args.command == "decay":
+        cmd_decay(args)
+    elif args.command == "link":
+        cmd_link(args)
 
 
 if __name__ == "__main__":
