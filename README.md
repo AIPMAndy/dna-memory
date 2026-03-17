@@ -34,30 +34,32 @@ $ cd ~/.openclaw/skills/dna-memory
 $ python3 scripts/evolve.py remember "我喜欢简洁的回复" -t preference -i 0.9
 ✅ 已记录记忆: 我喜欢简洁的回复 [偏好: 0.9]
 
-# 记录技能
-$ python3 scripts/evolve.py remember "会用 Python 写 CLI 工具" -t skill -i 0.8
-✅ 已记录记忆: 会用 Python 写 CLI 工具 [技能: 0.8]
+# 查看工作记忆
+$ python3 scripts/evolve.py working
+📌 工作记忆 (3/7 条):
+   1. Andy 喜欢简洁的回复 [⭐0.9]
+   2. 沟通风格: 直接高效 [⭐0.8]
 
-# 查看记忆统计
-$ python3 scripts/evolve.py stats
-📊 记忆统计:
-   短期记忆: 12 条
-   长期记忆: 156 条
-   记忆关联: 8 条
-   遗忘阈值: 0.3
+# 语义搜索相似记忆
+$ python3 scripts/semantic_search.py search "编程"
+   [0.92] 会用 Python 写 CLI 工具
+   [0.87] 擅长 JavaScript 开发
 
-# 搜索相关记忆
-$ python3 scripts/evolve.py recall "偏好"
-🔍 搜索: 偏好
-   - 我喜欢简洁的回复 [相关性: 0.95]
-   - 喜欢用 Markdown 格式 [相关性: 0.87]
+# 详细统计
+$ python3 scripts/detailed_stats.py
+========================================
+🧬 DNA Memory 统计报告
+========================================
 
-# AI 自动归纳模式
-$ python3 scripts/evolve.py reflect
-💡 模式归纳:
-   - 用户偏好简洁风格
-   - 技术栈: Python, CLI
-   - 沟通风格: 直接高效
+📊 总量统计:
+   总记忆: 363 条
+   短期记忆: 100 条
+   长期记忆: 263 条
+
+⚖️ 权重分布:
+   平均权重: 0.65
+   高权重(≥0.8): 45 条
+   低权重(<0.3): 12 条 ⚠️
 ```
 
 ---
@@ -68,21 +70,21 @@ $ python3 scripts/evolve.py reflect
 
 | 层级 | 容量 | 遗忘周期 | 用途 |
 |------|------|----------|------|
-| 工作记忆 | 5-7 条 | 即时 | 当前对话上下文 |
+| 工作记忆 | 5-7 条 | 即时 | 当前对话关键信息 |
 | 短期记忆 | 100 条 | 7天 | 用户偏好/习惯 |
 | 长期记忆 | ∞ | 智能 | 核心技能/知识 |
 
 ### 智能遗忘机制
 
 - **权重衰减**：信息随着时间推移自动降低权重
-- ** Relevance Filter**：只保留高相关性记忆
-- **模式清理**：定期清除低价值重复信息
+- **Relevance Filter**：只保留高相关性记忆
+- **自动清理**：权重低于 0.25 自动删除
 
-### 记忆关联
+### 语义搜索
 
-- 构建知识图谱，支持语义搜索
-- 自动发现记忆之间的关联
-- 支持多维度检索（时间、权重、类型）
+- 基于 Embeddings 的相似记忆搜索
+- 支持 OpenAI text-embedding-3-small
+- 本地 hash 备用方案
 
 ---
 
@@ -92,12 +94,17 @@ $ python3 scripts/evolve.py reflect
 dna-memory/
 ├── scripts/           # 命令行工具
 │   ├── evolve.py     # 主程序：记忆存取
-│   ├── reflect.py    # 模式归纳
-│   └── compact.py    # 记忆压缩
+│   ├── reflect.py    # LLM 模式归纳
+│   ├── autocollect.py # 自动采集对话
+│   ├── semantic_search.py # 语义搜索
+│   ├── backup.py     # 导出/导入备份
+│   ├── detailed_stats.py # 详细统计
+│   └── knowme_link.py # KnowMe 联动
 ├── memory/           # 记忆存储
 │   ├── short_term.db    # 短期记忆
-│   └── long_term.db    # 长期记忆
-├── skills/           # OpenClaw Skill
+│   ├── long_term.db    # 长期记忆
+│   ├── working.json    # 工作记忆
+│   └── embeddings.json # 语义向量
 └── tests/            # 测试用例
 ```
 
@@ -112,9 +119,20 @@ memory = Memory(
     short_term_capacity=100,    # 短期记忆容量
     long_term_capacity=-1,     # 长期记忆无限
     forget_threshold=0.3,       # 遗忘阈值
-    relevance_weight=0.7,      # 相关性权重
+    relevance_weight=0.7,       # 相关性权重
 )
 ```
+
+---
+
+## 🤖 自动化 (Cron)
+
+每日凌晨自动执行：
+
+| 时间 | 任务 |
+|------|------|
+| 02:00 | decay → link → autocollect → reflect → build embeddings → stats |
+| 03:00 (周日) | backup export |
 
 ---
 
