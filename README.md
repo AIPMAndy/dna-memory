@@ -150,7 +150,7 @@ memory = Memory(
 
 ## 📄 License
 
-MIT License - 随意使用，保留署名即可
+Apache 2.0 License - 随意使用，保留署名即可
 
 ---
 
