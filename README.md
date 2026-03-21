@@ -1,161 +1,322 @@
+<div align="center">
+
 # 🧬 DNA Memory
 
-[English](./README_EN.md) | 中文
+**让 AI Agent 像人脑一样学习、强化、遗忘与归纳**
 
-> 让 AI Agent 像人脑一样学习和成长
-
-[![Star](https://img.shields.io/github/stars/AIPMAndy/dna-memory?style=flat)](https://github.com/AIPMAndy/dna-memory/stargazers)
+[![Stars](https://img.shields.io/github/stars/AIPMAndy/dna-memory?style=social)](https://github.com/AIPMAndy/dna-memory/stargazers)
 [![License](https://img.shields.io/github/license/AIPMAndy/dna-memory)](https://github.com/AIPMAndy/dna-memory)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
 [![OpenClaw](https://img.shields.io/badge/Built%20for-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 
+[English](./README_EN.md) | **简体中文**
+
+</div>
+
 ---
 
-## 🚀 快速开始
+> 大多数 AI 记忆系统只是在“存”。
+> **DNA Memory** 想解决的是：**AI 如何像人一样学习与进化。**
+
+它不是简单的 memory store，而是一套带有：
+- **三层记忆架构**
+- **权重强化 / 衰减遗忘**
+- **反思归纳（reflect）**
+- **长期记忆晋升（promote）**
+- **重复记忆清理（dedupe）**
+- **FTS5 全文 recall 搜索**
+- **后台 daemon 自动维护**
+
+的 Agent 记忆系统。
+
+---
+
+## 🆚 为什么不是普通 Memory？
+
+| 能力 | Mem0 | Zep | LangChain Memory | **DNA Memory** |
+|------|:----:|:---:|:----------------:|:--------------:|
+| 基础存储 | ✅ | ✅ | ✅ | ✅ |
+| 向量/语义检索 | ✅ | ✅ | ✅ | ⚠️ 可扩展 |
+| 多层记忆架构 | ❌ | ⚠️ | ❌ | ✅ **工作/短期/长期** |
+| 主动遗忘 | ❌ | ❌ | ❌ | ✅ |
+| 自动反思 | ❌ | ❌ | ❌ | ✅ |
+| 模式归纳 | ❌ | ❌ | ❌ | ✅ |
+| 长期晋升 | ❌ | ❌ | ❌ | ✅ |
+| 本地优先 / 零重依赖核心 | ❌ | ❌ | ❌ | ✅ |
+| 适合 Agent 工作流 | ⚠️ | ⚠️ | ⚠️ | ✅ **为 Agent 行为闭环设计** |
+
+**一句话差异化定位：**
+
+> DNA Memory 帮助 AI Agent 不只是“记住”，而是像人脑一样对信息进行强化、遗忘、归纳和进化。
+
+---
+
+## 🚀 30 秒快速开始
 
 ```bash
-# 安装
-pip install dna-memory
+# 1) clone 到 OpenClaw skills 目录
+git clone https://github.com/AIPMAndy/dna-memory.git ~/.openclaw/skills/dna-memory
 
-# 使用
-python -m dna_memory remember "我喜欢简洁的回复" -t preference
-python -m dna_memory recall "偏好"
-python -m dna_memory stats
+# 2) 记录一条偏好
+python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py remember "用户喜欢简洁直接的回复" -t preference -i 0.9
+
+# 3) 搜索记忆
+python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py recall "简洁 回复"
+
+# 4) 查看统计
+python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py stats
 ```
+
+**特点：**
+- 核心功能只依赖 Python 标准库 + SQLite
+- 不需要外部数据库
+- 默认本地存储，适合个人 Agent / 本地 Agent / 自动化助手
 
 ---
 
-## 📺 Demo 演示
+## ✨ 核心能力
+
+### 1. 三层记忆架构
+
+```text
+工作记忆（Working）
+  ↓ 筛选
+短期记忆（Short-term）
+  ↓ 巩固 / 晋升
+长期记忆（Long-term）
+```
+
+| 层级 | 作用 | 典型内容 |
+|------|------|----------|
+| 工作记忆 | 当前会话临时上下文 | 本轮任务、刚发生的事 |
+| 短期记忆 | 近几天重要信息 | 用户偏好、近期经验、错误教训 |
+| 长期记忆 | 稳定知识与模式 | 规则、技能、长期偏好、归纳后的 pattern |
+
+### 2. 强化与遗忘
+
+- **高频使用 → 权重提升**
+- **长期不访问 → 权重衰减**
+- **低权重记忆 → 可被清理**
+- **被验证的高价值记忆 → 晋升为长期记忆**
+
+### 3. Reflect 反思机制
+
+`reflect` 会做两件事：
+- 从近期高权重记忆里提炼高频模式
+- 自动把稳定、重要的短期记忆晋升为长期记忆
+
+### 4. Recall 搜索增强
+
+当前版本已支持：
+- **多关键词 AND 搜索**
+- **`type:error` / `type:skill` 类型过滤**
+- **SQLite FTS5 全文搜索**
+- FTS5 不可用时自动回退 LIKE 搜索
+
+示例：
 
 ```bash
-$ cd ~/.openclaw/skills/dna-memory
-
-# 记录重要偏好
-$ python3 scripts/evolve.py remember "我喜欢简洁的回复" -t preference -i 0.9
-✅ 已记录记忆: 我喜欢简洁的回复 [偏好: 0.9]
-
-# 查看工作记忆
-$ python3 scripts/evolve.py working
-📌 工作记忆 (3/7 条):
-   1. Andy 喜欢简洁的回复 [⭐0.9]
-   2. 沟通风格: 直接高效 [⭐0.8]
-
-# 语义搜索相似记忆
-$ python3 scripts/semantic_search.py search "编程"
-   [0.92] 会用 Python 写 CLI 工具
-   [0.87] 擅长 JavaScript 开发
-
-# 详细统计
-$ python3 scripts/detailed_stats.py
-========================================
-🧬 DNA Memory 统计报告
-========================================
-
-📊 总量统计:
-   总记忆: 363 条
-   短期记忆: 100 条
-   长期记忆: 263 条
-
-⚖️ 权重分布:
-   平均权重: 0.65
-   高权重(≥0.8): 45 条
-   低权重(<0.3): 12 条 ⚠️
+python3 scripts/evolve.py recall "飞书 API"
+python3 scripts/evolve.py recall "type:error GitHub"
+python3 scripts/evolve.py recall "用户 偏好 简洁"
 ```
+
+### 5. 后台自动维护（Daemon）
+
+支持后台 daemon 定时执行：
+- 自动 reflect
+- 自动 decay
+- 避免同一批记忆反复归纳
+
+并可通过 **macOS launchd** 开机自启。
 
 ---
 
-## 🧠 核心特性
+## 📦 当前真实架构
 
-### 三层记忆架构
-
-| 层级 | 容量 | 遗忘周期 | 用途 |
-|------|------|----------|------|
-| 工作记忆 | 5-7 条 | 即时 | 当前对话关键信息 |
-| 短期记忆 | 100 条 | 7天 | 用户偏好/习惯 |
-| 长期记忆 | ∞ | 智能 | 核心技能/知识 |
-
-### 智能遗忘机制
-
-- **权重衰减**：信息随着时间推移自动降低权重
-- **Relevance Filter**：只保留高相关性记忆
-- **自动清理**：权重低于 0.25 自动删除
-
-### 语义搜索
-
-- 基于 Embeddings 的相似记忆搜索
-- 支持 OpenAI text-embedding-3-small
-- 本地 hash 备用方案
-
----
-
-## 📁 项目结构
-
-```
+```text
 dna-memory/
-├── scripts/           # 命令行工具
-│   ├── evolve.py     # 主程序：记忆存取
-│   ├── reflect.py    # LLM 模式归纳
-│   ├── autocollect.py # 自动采集对话
-│   ├── semantic_search.py # 语义搜索
-│   ├── backup.py     # 导出/导入备份
-│   ├── detailed_stats.py # 详细统计
-│   └── knowme_link.py # KnowMe 联动
-├── memory/           # 记忆存储
-│   ├── short_term.db    # 短期记忆
-│   ├── long_term.db    # 长期记忆
-│   ├── working.json    # 工作记忆
-│   └── embeddings.json # 语义向量
-└── tests/            # 测试用例
+├── scripts/
+│   ├── evolve.py              # 核心 CLI：remember / recall / stats / reflect / dedupe ...
+│   ├── dna_memory_daemon.py   # 后台守护：自动 reflect / decay
+│   ├── semantic_search.py     # 语义搜索实验模块（可扩展）
+│   ├── analyze.py
+│   ├── api.py
+│   ├── autocollect.py
+│   ├── backup.py
+│   ├── cli.py
+│   ├── detailed_stats.py
+│   ├── knowme_link.py
+│   ├── reminder.py
+│   ├── trigger.py
+│   └── visualize.py
+├── memory/
+│   ├── memory.db              # SQLite 主库（记忆 + 操作日志）
+│   └── working.json           # 工作记忆
+├── assets/
+│   └── config.json            # daemon/衰减等配置
+├── README.md
+├── README_EN.md
+└── SKILL.md
+```
+
+> 注意：`memory/*.db` 不应提交到 Git，仓库已加入 ignore 保护真实记忆数据。
+
+---
+
+## 🧪 核心命令
+
+### Remember
+
+```bash
+python3 scripts/evolve.py remember "Andy 喜欢简洁直接的回复" -t preference -i 0.95
+```
+
+### Recall
+
+```bash
+python3 scripts/evolve.py recall "简洁 回复"
+python3 scripts/evolve.py recall "type:skill 飞书"
+```
+
+### Stats
+
+```bash
+python3 scripts/evolve.py stats
+```
+
+### Reflect
+
+```bash
+python3 scripts/evolve.py reflect
+```
+
+### Promote
+
+```bash
+python3 scripts/evolve.py promote --id 12
+```
+
+### Dedupe
+
+```bash
+python3 scripts/evolve.py dedupe
+```
+
+### Daemon
+
+```bash
+# 启动
+python3 scripts/dna_memory_daemon.py start
+
+# 查看状态
+python3 scripts/dna_memory_daemon.py status
+
+# 停止
+python3 scripts/dna_memory_daemon.py stop
 ```
 
 ---
 
-## 🔧 配置选项
+## ⚙️ 适用场景
 
-```python
-from dna_memory import Memory
+### 1. 个人 AI 助理
+- 记住用户偏好
+- 逐步形成长期协作风格
+- 从错误中学习，不重复犯错
 
-memory = Memory(
-    short_term_capacity=100,    # 短期记忆容量
-    long_term_capacity=-1,     # 长期记忆无限
-    forget_threshold=0.3,       # 遗忘阈值
-    relevance_weight=0.7,       # 相关性权重
-)
-```
+### 2. Agent 工作流编排
+- 任务执行后沉淀技能
+- 失败案例进入 error memory
+- 长任务形成模式归纳
+
+### 3. AI 知识型产品
+- 积累用户画像
+- 记录行为模式
+- 构建长期 personalization
+
+### 4. 自我进化系统
+- 配合 self-improving-agent / OpenClaw / 自定义 Agent 使用
+- 把“经验”变成机器能持续复用的资产
 
 ---
 
-## 🤖 自动化 (Cron)
+## 🧭 推荐工作流
 
-每日凌晨自动执行：
+```text
+收到任务
+  ↓
+Recall 相关记忆
+  ↓
+执行任务
+  ↓
+Remember 新偏好 / 新技能 / 错误
+  ↓
+Reflect 归纳模式
+  ↓
+Promote 到长期记忆
+```
 
-| 时间 | 任务 |
-|------|------|
-| 02:00 | decay → link → autocollect → reflect → build embeddings → stats |
-| 03:00 (周日) | backup export |
+这套流程适合：
+- 被用户纠正时
+- 学到新偏好时
+- 遇到 API 失败时
+- 完成长任务时
+- 发现重复模式时
+
+---
+
+## 🗺️ Roadmap
+
+- [x] SQLite 单库重构
+- [x] remember / recall / reflect / promote / dedupe CLI
+- [x] daemon 自动 reflect / decay
+- [x] recall 支持 FTS5 全文搜索
+- [x] launchd 开机自启方案
+- [ ] 更强的中文分词与相关性排序
+- [ ] 真正的 embedding 语义检索接入
+- [ ] 记忆关联图谱可视化增强
+- [ ] 更完整的导入 / 导出 / 迁移工具
+- [ ] 多 Agent 共享记忆空间支持
 
 ---
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 PR！
+欢迎提交 Issue / PR，一起把“AI 记忆”这件事做对。
 
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/xxx`)
-3. 提交更改 (`git commit -m 'Add xxx'`)
-4. 推送到分支 (`git push origin feature/xxx`)
-5. 创建 Pull Request
+建议优先贡献方向：
+- recall 相关性排序
+- 中文搜索体验
+- pattern 抽取质量
+- 记忆可视化
+- 多模型 embedding 接入
+
+---
+
+## 👨‍💻 作者
+
+**Andy / AI酋长Andy**  
+前腾讯 / 百度 AI 产品专家 → 大模型独角兽 VP → 创业 CEO
+
+关注方向：
+- AI Agent
+- AI 商业化
+- 记忆系统
+- 个体增强
+
+GitHub: https://github.com/AIPMAndy
 
 ---
 
 ## 📄 License
 
-Apache 2.0 License - 随意使用，保留署名即可
+[Apache 2.0](LICENSE)
 
 ---
 
-## 👤 作者
+<div align="center">
 
-**Andy** - [GitHub](https://github.com/AIPMAndy)
+**如果这个项目对你有帮助，欢迎给个 ⭐ Star。**
 
-> 让 AI 成为真正的伙伴，而不是每次都要重新介绍的陌生人。
+</div>
