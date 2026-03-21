@@ -144,6 +144,32 @@ def to_int(value, default: int = 0) -> int:
 
 
 def should_run_reflect(memory_dir: Path) -> bool:
+    """Check if new memories exist since last reflect - reads from SQLite"""
+    import sqlite3
+    # Try SQLite first (current data source)
+    db_path = Path(__file__).parent.parent / "memory" / "memory.db"
+    if db_path.exists():
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM operations WHERE operation='remember'")
+            remember_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM operations WHERE operation='reflect'")
+            reflect_count = cursor.fetchone()[0]
+            # Also check last reflect timestamp vs last remember timestamp
+            cursor.execute("SELECT MAX(timestamp) FROM operations WHERE operation='remember'")
+            last_remember = cursor.fetchone()[0]
+            cursor.execute("SELECT MAX(timestamp) FROM operations WHERE operation='reflect'")
+            last_reflect = cursor.fetchone()[0]
+            conn.close()
+            if not last_remember:
+                return False
+            if not last_reflect:
+                return True  # Never reflected but has memories
+            return last_remember > last_reflect
+        except Exception:
+            pass
+    # Fallback to old meta.json
     meta = load_memory_meta(memory_dir)
     stats = meta.get("stats", {}) if isinstance(meta.get("stats"), dict) else {}
     remember_count = to_int(stats.get("remember", 0), 0)

@@ -17,3 +17,6 @@ Thumbs.db
 
 # 不要提交实际的记忆数据
 # memory/*.json  # 如果放在项目内的话
+
+# 不要提交实际数据库
+memory/*.db

@@ -80,6 +80,18 @@ def init_db():
         )
     """)
     
+    # FTS5 全文索引（如果不存在则创建）
+    try:
+        cursor.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+                content, tags, type,
+                content_rowid='id',
+                tokenize='unicode61'
+            )
+        """)
+    except Exception:
+        pass  # FTS5 may not be available on all builds
+    
     conn.commit()
     return conn
 
@@ -158,6 +170,14 @@ def add_memory(content, mem_type="fact", tags="", importance=0.6, short_term=1, 
     """, (content, mem_type, tags, importance, short_term, long_term, now, now))
     
     memory_id = cursor.lastrowid
+    
+    # 同步更新 FTS5 索引
+    try:
+        cursor.execute("INSERT INTO memory_fts(rowid, content, tags, type) VALUES (?, ?, ?, ?)",
+                       (memory_id, content, tags, mem_type))
+    except Exception:
+        pass  # FTS table may not exist
+    
     conn.commit()
     conn.close()
     
@@ -166,27 +186,79 @@ def add_memory(content, mem_type="fact", tags="", importance=0.6, short_term=1, 
 
 
 def search_memories(query, limit=10):
-    """搜索记忆"""
+    """搜索记忆 - FTS5 全文搜索 + LIKE 回退，支持多关键词、类型过滤"""
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute("""
-        SELECT id, content, type, tags, weight 
-        FROM memory 
-        WHERE content LIKE ? OR tags LIKE ?
-        ORDER BY weight DESC, updated DESC
-        LIMIT ?
-    """, (f"%{query}%", f"%{query}%", limit))
+    # 解析类型过滤 (e.g. "type:skill 飞书")
+    type_filter = None
+    clean_query = query
+    type_match = re.match(r'type:(\w+)\s+(.*)', query)
+    if type_match:
+        type_filter = type_match.group(1)
+        clean_query = type_match.group(2)
+    
+    keywords = [k.strip() for k in clean_query.split() if k.strip()]
+    if not keywords:
+        conn.close()
+        return []
     
     results = []
-    for row in cursor.fetchall():
-        results.append({
-            "id": row[0],
-            "content": row[1],
-            "type": row[2],
-            "tags": row[3],
-            "weight": row[4]
-        })
+    
+    # 尝试 FTS5 搜索
+    try:
+        fts_query = " AND ".join(f'"{kw}"' for kw in keywords)
+        if type_filter:
+            fts_query += f' AND type:{type_filter}'
+        
+        cursor.execute(f"""
+            SELECT m.id, m.content, m.type, m.tags, m.weight, m.short_term, m.long_term,
+                   rank
+            FROM memory_fts f
+            JOIN memory m ON f.rowid = m.id
+            WHERE memory_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+        """, (fts_query, limit))
+        
+        for row in cursor.fetchall():
+            layer = "长期" if row[6] else ("短期" if row[5] else "?")
+            results.append({
+                "id": row[0], "content": row[1], "type": row[2],
+                "tags": row[3], "weight": row[4], "layer": layer
+            })
+    except Exception:
+        pass
+    
+    # FTS5 没结果或不可用，回退到 LIKE 搜索
+    if not results:
+        conditions = []
+        params = []
+        for kw in keywords:
+            conditions.append("(content LIKE ? OR tags LIKE ? OR type LIKE ?)")
+            params.extend([f"%{kw}%", f"%{kw}%", f"%{kw}%"])
+        
+        where = " AND ".join(conditions)
+        if type_filter:
+            where = f"({where}) AND type = ?"
+            params.append(type_filter)
+        
+        params.append(limit)
+        
+        cursor.execute(f"""
+            SELECT id, content, type, tags, weight, short_term, long_term
+            FROM memory 
+            WHERE {where}
+            ORDER BY weight DESC, updated DESC
+            LIMIT ?
+        """, params)
+        
+        for row in cursor.fetchall():
+            layer = "长期" if row[6] else ("短期" if row[5] else "?")
+            results.append({
+                "id": row[0], "content": row[1], "type": row[2],
+                "tags": row[3], "weight": row[4], "layer": layer
+            })
     
     conn.close()
     return results
@@ -390,7 +462,8 @@ def cmd_recall(args):
     
     print(f"🔍 找到 {len(results)} 条:")
     for r in results:
-        print(f"   [{r['weight']:.2f}] {r['content'][:60]}")
+        layer = r.get('layer', '?')
+        print(f"   [{r['weight']:.2f}|{r['type']}|{layer}] {r['content'][:80]}")
 
 
 def cmd_stats(args):
@@ -447,6 +520,114 @@ def cmd_link(args):
     print(f"🔗 已创建 {links} 个记忆关联")
 
 
+# ============ 记忆晋升 & 反思优化 ============
+PROMOTE_THRESHOLD = 0.75   # 权重 >= 此值可晋升到长期记忆
+
+def auto_promote(threshold=PROMOTE_THRESHOLD, min_age_days=3):
+    """自动将高权重、稳定的短期记忆晋升为长期记忆"""
+    import time
+    conn = get_db()
+    cursor = conn.cursor()
+    cutoff = time.time() - (min_age_days * 86400)
+    
+    cursor.execute("""
+        SELECT id, content, type, tags, weight
+        FROM memory
+        WHERE short_term = 1 AND long_term = 0
+          AND weight >= ? AND updated <= ?
+    """, (threshold, cutoff))
+    
+    candidates = cursor.fetchall()
+    promoted = 0
+    for mid, content, mtype, tags, weight in candidates:
+        cursor.execute("""
+            UPDATE memory SET long_term = 1, short_term = 0, weight = 1.0
+            WHERE id = ?""", (mid,))
+        promoted += 1
+        print(f"   ⭐ 晋升 [{weight:.2f}] {content[:50]}...")
+    
+    conn.commit()
+    conn.close()
+    log_operation("promote", f"promoted {promoted} to long_term")
+    return promoted
+
+
+def find_patterns():
+    """从高权重记忆中归纳模式关键词"""
+    from collections import Counter
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT content FROM memory
+        WHERE type IN ('fact','preference','skill') AND weight >= 0.75
+        ORDER BY weight DESC LIMIT 20
+    """)
+    all_words = []
+    for (content,) in cursor.fetchall():
+        all_words.extend([w.lower() for w in content.split() if len(w) > 3])
+    top = [w for w, _ in Counter(all_words).most_common(10)]
+    conn.close()
+    return top
+
+
+def cmd_reflect(args):
+    """反思：归纳模式 + 晋升到长期记忆"""
+    print("🔄 开始反思...")
+    keywords = find_patterns()
+    print(f"\n📊 关键词模式: {', '.join(keywords[:8])}")
+    promoted = auto_promote(
+        threshold=float(getattr(args, 'threshold') or PROMOTE_THRESHOLD),
+        min_age_days=int(getattr(args, 'min_age') or 3)
+    )
+    stats = get_stats()
+    print(f"\n✅ 晋升完成: {promoted} 条 → 长期记忆")
+    print(f"   短期: {stats['short_term']} | 长期: {stats['long_term']}")
+
+
+def cmd_promote(args):
+    """手动晋升指定记忆到长期记忆"""
+    conn = get_db()
+    cursor = conn.cursor()
+    if getattr(args, 'id', None):
+        cursor.execute("UPDATE memory SET long_term=1, short_term=0, weight=1.0 WHERE id=?", (args.id,))
+        conn.commit()
+        print(f"✅ 已晋升 ID={args.id}")
+    else:
+        cursor.execute("SELECT id, substr(content,1,60), weight, type FROM memory WHERE short_term=1 AND long_term=0 ORDER BY weight DESC LIMIT 20")
+        print("📋 可晋升记忆:")
+        for row in cursor.fetchall():
+            print(f"   #{row[0]} [{row[2]:.2f}] {row[1]}... [{row[3]}]")
+        print("\n用法: promote --id <id>")
+    conn.close()
+
+
+def cmd_dedupe(args):
+    """去重：合并相似记忆"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, content, weight FROM memory ORDER BY content")
+    all_mem = cursor.fetchall()
+    removed = 0
+    kept = set()
+    for i, (id1, c1, w1) in enumerate(all_mem):
+        if id1 in kept: continue
+        kept.add(id1)
+        for id2, c2, w2 in all_mem[i+1:]:
+            if id2 in kept: continue
+            if abs(len(c1)-len(c2))<10 and (c1 in c2 or c2 in c1):
+                # 保留权重高的
+                if w2 > w1:
+                    kept.discard(id1); kept.add(id2)
+                cursor.execute("DELETE FROM memory WHERE id=?", (id2 if id2 in kept else id1,))
+                removed += 1
+                print(f"   🗑️ 合并: {c1[:40]}...")
+                break
+    conn.commit()
+    conn.close()
+    log_operation("dedupe", f"removed {removed}")
+    print(f"✅ 去重完成: 删除 {removed} 条")
+
+
 # ============ 主函数 ============
 def main():
     parser = argparse.ArgumentParser(description="DNA Memory 核心程序")
@@ -484,6 +665,18 @@ def main():
     # link
     subparsers.add_parser("link", help="建立记忆关联")
     
+    # reflect
+    p_reflect = subparsers.add_parser("reflect", help="反思归纳（模式 + 晋升）")
+    p_reflect.add_argument("--threshold", default=str(PROMOTE_THRESHOLD), help="晋升权重阈值")
+    p_reflect.add_argument("--min-age", default="3", help="最短存活天数")
+    
+    # promote
+    p_promote = subparsers.add_parser("promote", help="手动晋升到长期记忆")
+    p_promote.add_argument("--id", type=int, help="记忆ID")
+    
+    # dedupe
+    subparsers.add_parser("dedupe", help="去重合并")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -510,6 +703,12 @@ def main():
         cmd_decay(args)
     elif args.command == "link":
         cmd_link(args)
+    elif args.command == "reflect":
+        cmd_reflect(args)
+    elif args.command == "promote":
+        cmd_promote(args)
+    elif args.command == "dedupe":
+        cmd_dedupe(args)
 
 
 if __name__ == "__main__":
