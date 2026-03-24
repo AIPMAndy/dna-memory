@@ -30,6 +30,7 @@ FORGET_THRESHOLD = 0.25  # 遗忘阈值
 DECAY_FACTOR = 0.95  # 衰减因子
 SHORT_TERM_CAPACITY = 100  # 短期记忆容量
 AUTO_LINK_SIMILARITY = 0.7  # 自动关联相似度阈值
+RECENCY_HALF_LIFE_DAYS = 30.0  # 访问敏感衰减的半衰期（天）
 
 # 记忆类型
 TYPES = ["fact", "preference", "skill", "error", "pattern", "insight"]
@@ -52,9 +53,21 @@ def init_db():
             short_term INTEGER DEFAULT 1,
             long_term INTEGER DEFAULT 0,
             created REAL DEFAULT (strftime('%s', 'now')),
-            updated REAL DEFAULT (strftime('%s', 'now'))
+            updated REAL DEFAULT (strftime('%s', 'now')),
+            last_accessed REAL DEFAULT (strftime('%s', 'now'))
         )
     """)
+    # Migrate existing databases: add last_accessed if missing
+    cursor.execute("PRAGMA table_info(memory)")
+    cols = [row[1] for row in cursor.fetchall()]
+    if "last_accessed" not in cols:
+        # SQLite does not allow non-constant defaults in ALTER TABLE, so add
+        # the column without a default and then back-fill immediately.
+        cursor.execute(
+            "ALTER TABLE memory ADD COLUMN last_accessed REAL"
+        )
+        # Back-fill: treat existing memories as accessed at their last updated time
+        cursor.execute("UPDATE memory SET last_accessed = updated WHERE last_accessed IS NULL")
     
     # 记忆关联表
     cursor.execute("""
@@ -165,9 +178,9 @@ def add_memory(content, mem_type="fact", tags="", importance=0.6, short_term=1, 
     
     now = time.time()
     cursor.execute("""
-        INSERT INTO memory (content, type, tags, weight, short_term, long_term, created, updated)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (content, mem_type, tags, importance, short_term, long_term, now, now))
+        INSERT INTO memory (content, type, tags, weight, short_term, long_term, created, updated, last_accessed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (content, mem_type, tags, importance, short_term, long_term, now, now, now))
     
     memory_id = cursor.lastrowid
     
@@ -259,7 +272,17 @@ def search_memories(query, limit=10):
                 "id": row[0], "content": row[1], "type": row[2],
                 "tags": row[3], "weight": row[4], "layer": layer
             })
-    
+
+    # Update last_accessed for retrieved memories (same connection, before close)
+    if results:
+        ids = [r["id"] for r in results]
+        placeholders = ",".join("?" * len(ids))
+        conn.execute(
+            f"UPDATE memory SET last_accessed = ? WHERE id IN ({placeholders})",
+            [time.time()] + ids,
+        )
+        conn.commit()
+
     conn.close()
     return results
 
@@ -308,19 +331,51 @@ def auto_forget(threshold=FORGET_THRESHOLD):
     return deleted
 
 
-def auto_decay(factor=DECAY_FACTOR):
-    """权重衰减"""
+def auto_decay(factor=DECAY_FACTOR, use_recency: bool = True):
+    """权重衰减（可选访问敏感模式）
+
+    当 use_recency=True 时，近期被访问的记忆衰减更慢：
+      recency_multiplier = 1 - (1 - factor) * exp(-days_since_access / half_life)
+    即访问时间越近（days_since_access → 0），衰减因子越接近 1.0（几乎不衰减）；
+    访问时间越久（days_since_access → ∞），衰减因子趋近全局 factor。
+
+    当 use_recency=False 时，退回原先的统一衰减行为。
+    """
+    import math
+
     conn = get_db()
     cursor = conn.cursor()
-    
-    # 衰减所有记忆权重
-    cursor.execute("UPDATE memory SET weight = weight * ?", (factor,))
-    updated = cursor.rowcount
-    
+
+    if not use_recency:
+        cursor.execute("UPDATE memory SET weight = weight * ?", (factor,))
+        updated = cursor.rowcount
+    else:
+        now = time.time()
+        half_life_seconds = RECENCY_HALF_LIFE_DAYS * 86400.0
+        cursor.execute("SELECT id, weight, last_accessed FROM memory")
+        rows = cursor.fetchall()
+        updated = 0
+        for mid, weight, last_accessed in rows:
+            if last_accessed is None:
+                last_accessed = now
+            days_since = max(0.0, (now - last_accessed) / 86400.0)
+            # Recency multiplier: recently-accessed memories decay more slowly.
+            # At days_since=0  → multiplier=1.0  (no decay, just accessed)
+            # At days_since=∞  → multiplier=factor (full base decay, never accessed)
+            recency_multiplier = factor + (1.0 - factor) * math.exp(
+                -days_since / RECENCY_HALF_LIFE_DAYS
+            )
+            new_weight = weight * recency_multiplier
+            cursor.execute(
+                "UPDATE memory SET weight = ? WHERE id = ?", (new_weight, mid)
+            )
+            updated += 1
+
     conn.commit()
     conn.close()
-    
-    log_operation("decay", f"decayed {updated} memories")
+
+    mode = "recency-sensitive" if use_recency else "uniform"
+    log_operation("decay", f"decayed {updated} memories ({mode})")
     return updated
 
 
@@ -363,6 +418,17 @@ def auto_link_memories():
     
     log_operation("link", f"created {links_created} links")
     return links_created
+
+
+def access_memory(memory_id: int):
+    """更新指定记忆的 last_accessed 时间戳（供外部调用，例如工作流读取某条记忆后调用）"""
+    conn = get_db()
+    conn.execute(
+        "UPDATE memory SET last_accessed = ? WHERE id = ?", (time.time(), memory_id)
+    )
+    conn.commit()
+    conn.close()
+    log_operation("access", f"id={memory_id}")
 
 
 def get_related_memories(memory_id, limit=5):
@@ -510,8 +576,10 @@ def cmd_forget(args):
 def cmd_decay(args):
     """衰减操作"""
     factor = float(args.factor or DECAY_FACTOR)
-    updated = auto_decay(factor)
-    print(f"📉 已衰减 {updated} 条记忆权重 (×{factor})")
+    use_recency = not getattr(args, "uniform", False)
+    updated = auto_decay(factor, use_recency=use_recency)
+    mode = "uniform" if not use_recency else "recency-sensitive"
+    print(f"📉 已衰减 {updated} 条记忆权重 (×{factor}, {mode})")
 
 
 def cmd_link(args):
@@ -659,8 +727,9 @@ def main():
     p_forget.add_argument("-t", "--threshold", default=str(FORGET_THRESHOLD), help="遗忘阈值")
     
     # decay
-    p_decay = subparsers.add_parser("decay", help="权重衰减")
+    p_decay = subparsers.add_parser("decay", help="权重衰减（默认访问敏感，近期使用的记忆衰减更慢）")
     p_decay.add_argument("-f", "--factor", default=str(DECAY_FACTOR), help="衰减因子")
+    p_decay.add_argument("--uniform", action="store_true", help="退回统一衰减模式（忽略 last_accessed）")
     
     # link
     subparsers.add_parser("link", help="建立记忆关联")
