@@ -6,7 +6,6 @@ DNA Memory - 语义搜索模块
 
 import json
 import sys
-import numpy as np
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -50,10 +49,20 @@ def simple_hash(text):
 
 
 def cosine_similarity(a, b):
-    """计算余弦相似度"""
-    a = np.array(a)
-    b = np.array(b)
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-8)
+    """计算余弦相似度（纯 Python 实现，避免强依赖 numpy）。"""
+    if not a or not b:
+        return 0.0
+    n = min(len(a), len(b))
+    if n == 0:
+        return 0.0
+    a_vals = [float(x) for x in a[:n]]
+    b_vals = [float(x) for x in b[:n]]
+    dot = sum(x * y for x, y in zip(a_vals, b_vals))
+    norm_a = sum(x * x for x in a_vals) ** 0.5
+    norm_b = sum(y * y for y in b_vals) ** 0.5
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / (norm_a * norm_b + 1e-8)
 
 
 def load_embeddings():
