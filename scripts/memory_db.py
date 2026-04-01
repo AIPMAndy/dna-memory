@@ -7,6 +7,11 @@
 ``ModuleNotFoundError: No module named 'scripts.memory_db'``。
 """
 
-from scripts.evolve import get_db, init_db, DB_PATH  # re-export
+try:
+    # 作为包模块导入（例如 `python -m scripts.evolve` 场景）
+    from scripts.evolve import get_db, init_db, DB_PATH  # type: ignore
+except ModuleNotFoundError:
+    # 作为顶层模块导入（例如脚本把 `scripts/` 加入 sys.path 后 `import memory_db`）
+    from evolve import get_db, init_db, DB_PATH  # type: ignore
 
 __all__ = ["get_db", "init_db", "DB_PATH"]
