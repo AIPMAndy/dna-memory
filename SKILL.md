@@ -1,9 +1,17 @@
 ---
 name: dna-memory
-description: |
-  DNA 记忆系统 - 让 AI Agent 像人脑一样学习和成长。
-  三层记忆架构（工作/短期/长期）+ 主动遗忘 + 自动归纳 + 反思循环 + 记忆关联。
-  激活场景：用户提到"记忆"、"学习"、"进化"、"成长"、"记住"、"回顾"、"反思"。
+description: "DNA memory system for AI agents: three-layer architecture (working/short-term/long-term) with active forgetting, pattern summarization, reflection loops, and memory associations. Use when building agents that need persistent memory across sessions, context recall, or when user mentions 记忆/学习/记住/回顾/反思."
+user-invocable: true
+triggers:
+  - remember this
+  - recall what you learned
+  - reflect on past sessions
+  - 记住这个
+  - 回忆一下
+  - 反思一下
+  - 记忆系统
+  - learn from this mistake
+  - DNA memory
 ---
 
 # DNA Memory - DNA 记忆系统
