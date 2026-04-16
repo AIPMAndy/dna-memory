@@ -42,6 +42,9 @@
 | 自动反思 | ❌ | ❌ | ❌ | ✅ |
 | 模式归纳 | ❌ | ❌ | ❌ | ✅ |
 | 长期晋升 | ❌ | ❌ | ❌ | ✅ |
+| 记忆质量评估 | ❌ | ❌ | ❌ | ✅ **自动评分+清理** |
+| 关联图谱 | ❌ | ❌ | ❌ | ✅ **因果/矛盾检测** |
+| 智能相关性排序 | ⚠️ | ⚠️ | ⚠️ | ✅ **混合检索+重排序** |
 | 本地优先 / 零重依赖核心 | ❌ | ❌ | ❌ | ✅ |
 | 适合 Agent 工作流 | ⚠️ | ⚠️ | ⚠️ | ✅ **为 Agent 行为闭环设计** |
 
@@ -112,13 +115,20 @@ python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py stats
 - **`type:error` / `type:skill` 类型过滤**
 - **SQLite FTS5 全文搜索**
 - FTS5 不可用时自动回退 LIKE 搜索
+- **🆕 智能相关性排序**（混合检索 + 多维度评分）
+- **🆕 中文分词优化**（2-3 字切分 + 英文词提取）
+- **🆕 上下文感知**（结合当前任务提升相关性）
 
 示例：
 
 ```bash
+# 基础 Recall
 python3 scripts/evolve.py recall "飞书 API"
 python3 scripts/evolve.py recall "type:error GitHub"
-python3 scripts/evolve.py recall "用户 偏好 简洁"
+
+# 🆕 增强版 Recall（智能排序）
+python3 scripts/advanced_recall.py "飞书 API" --context "正在调试消息发送"
+python3 scripts/advanced_recall.py "错误" --type error --min-score 0.5
 ```
 
 ### 5. 后台自动维护（Daemon）
@@ -129,6 +139,48 @@ python3 scripts/evolve.py recall "用户 偏好 简洁"
 - 避免同一批记忆反复归纳
 
 并可通过 **macOS launchd** 开机自启。
+
+### 6. 🆕 记忆质量评估系统
+
+自动评估记忆质量，识别高价值记忆和低质量记忆：
+- **多维度评分**：访问频率、新鲜度、具体性、验证状态、关联度、重要性
+- **质量等级**：excellent / good / fair / poor
+- **自动清理**：清理低质量记忆，释放存储空间
+- **健康度报告**：生成记忆系统健康度报告
+
+```bash
+# 评估所有记忆
+python3 scripts/memory_quality.py evaluate --limit 20
+
+# 生成健康度报告
+python3 scripts/memory_quality.py report
+
+# 清理低质量记忆（预览）
+python3 scripts/memory_quality.py cleanup --threshold 0.2 --dry-run
+
+# 实际清理
+python3 scripts/memory_quality.py cleanup --threshold 0.2
+```
+
+### 7. 🆕 记忆关联图谱
+
+自动发现记忆之间的关联关系：
+- **关联类型**：相关、因果、矛盾、扩展、替代
+- **自动发现**：基于文本相似度和语义分析
+- **因果识别**：错误 → 解决方案
+- **矛盾检测**：冲突的偏好自动标记
+- **图谱可视化**：查看记忆关联网络
+
+```bash
+# 为单个记忆发现关联
+python3 scripts/memory_graph.py discover --id 123
+
+# 批量发现关联
+python3 scripts/memory_graph.py batch --limit 100
+
+# 查看记忆关联图谱
+python3 scripts/memory_graph.py graph --id 123 --depth 2
+```
 
 ---
 
@@ -175,8 +227,14 @@ python3 scripts/evolve.py remember "Andy 喜欢简洁直接的回复" -t prefere
 ### Recall
 
 ```bash
+# 基础 Recall
 python3 scripts/evolve.py recall "简洁 回复"
 python3 scripts/evolve.py recall "type:skill 飞书"
+
+# 增强版 Recall（智能搜索 + 上下文感知）
+python3 scripts/enhanced_recall.py "关键词" --context "上下文"
+python3 scripts/enhanced_recall.py --type error --limit 5
+python3 scripts/enhanced_recall.py --recent 7
 ```
 
 ### Stats
@@ -214,6 +272,35 @@ python3 scripts/dna_memory_daemon.py status
 
 # 停止
 python3 scripts/dna_memory_daemon.py stop
+```
+
+### SessionMemory（会话级记忆）
+
+```bash
+# 查看会话摘要
+python3 scripts/session_memory.py summary
+
+# 压缩会话记忆（token 使用 > 70% 时）
+python3 scripts/session_memory.py compress
+
+# 提取有价值的记忆（会话结束时）
+python3 scripts/session_memory.py extract
+
+# 清理会话记忆
+python3 scripts/session_memory.py clear
+```
+
+### MemoryExtractor（自动记忆提取）
+
+```bash
+# 从对话日志中自动提取记忆
+python3 scripts/memory_extractor.py --file conversation.json
+
+# 只提取不写入（预览）
+python3 scripts/memory_extractor.py --file conversation.json --dry-run
+
+# 调整置信度阈值
+python3 scripts/memory_extractor.py --file conversation.json --threshold 0.8
 ```
 
 ---
@@ -273,9 +360,13 @@ Promote 到长期记忆
 - [x] daemon 自动 reflect / decay
 - [x] recall 支持 FTS5 全文搜索
 - [x] launchd 开机自启方案
-- [ ] 更强的中文分词与相关性排序
+- [x] 🆕 智能相关性排序（混合检索 + 多维度评分）
+- [x] 🆕 中文分词优化（2-3 字切分）
+- [x] 🆕 记忆质量评估系统（自动评分 + 清理）
+- [x] 🆕 记忆关联图谱（因果/矛盾检测）
+- [ ] 更强的中文分词（接入 jieba）
 - [ ] 真正的 embedding 语义检索接入
-- [ ] 记忆关联图谱可视化增强
+- [ ] 记忆关联图谱可视化增强（Web UI）
 - [ ] 更完整的导入 / 导出 / 迁移工具
 - [ ] 多 Agent 共享记忆空间支持
 
