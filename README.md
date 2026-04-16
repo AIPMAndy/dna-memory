@@ -45,6 +45,11 @@
 | 记忆质量评估 | ❌ | ❌ | ❌ | ✅ **自动评分+清理** |
 | 关联图谱 | ❌ | ❌ | ❌ | ✅ **因果/矛盾检测** |
 | 智能相关性排序 | ⚠️ | ⚠️ | ⚠️ | ✅ **混合检索+重排序** |
+| 🆕 自我强化学习 | ❌ | ❌ | ❌ | ✅ **验证+强化/衰减** |
+| 🆕 记忆蒸馏 | ❌ | ❌ | ❌ | ✅ **合并相似记忆** |
+| 🆕 元记忆追踪 | ❌ | ❌ | ❌ | ✅ **系统演化追踪** |
+| 🆕 对抗性验证 | ❌ | ❌ | ❌ | ✅ **矛盾检测+解决** |
+| 🆕 记忆压缩 | ❌ | ❌ | ❌ | ✅ **冷存储归档** |
 | 本地优先 / 零重依赖核心 | ❌ | ❌ | ❌ | ✅ |
 | 适合 Agent 工作流 | ⚠️ | ⚠️ | ⚠️ | ✅ **为 Agent 行为闭环设计** |
 
@@ -180,6 +185,97 @@ python3 scripts/memory_graph.py batch --limit 100
 
 # 查看记忆关联图谱
 python3 scripts/memory_graph.py graph --id 123 --depth 2
+```
+
+### 8. 🆕 记忆递归进化系统
+
+**核心理念**：让记忆系统像生物一样自我进化、强化、淘汰。
+
+#### 8.1 自我强化学习循环
+
+验证记忆是否真的有用，自动强化/衰减：
+
+```bash
+# 强化记忆（任务成功时）
+python3 scripts/memory_reinforcement.py reinforce --id 123 --reason "任务成功"
+
+# 衰减记忆（任务失败时）
+python3 scripts/memory_reinforcement.py decay --id 123 --reason "任务失败"
+
+# 完整强化学习循环
+python3 scripts/memory_reinforcement.py loop --query "飞书 API" --task-id "task_001" --success
+
+# 分析强化历史
+python3 scripts/memory_reinforcement.py analyze --days 7
+```
+
+#### 8.2 记忆蒸馏
+
+将多条相似记忆合并为一条高质量记忆：
+
+```bash
+# 分析蒸馏潜力
+python3 scripts/memory_distillation.py analyze --threshold 0.75
+
+# 预览蒸馏
+python3 scripts/memory_distillation.py distill --dry-run
+
+# 执行蒸馏
+python3 scripts/memory_distillation.py distill
+```
+
+#### 8.3 元记忆（Meta-Memory）
+
+追踪记忆系统本身的演化：
+
+```bash
+# 健康检查
+python3 scripts/meta_memory.py check
+
+# 自我修复
+python3 scripts/meta_memory.py repair
+
+# 演化报告
+python3 scripts/meta_memory.py report
+
+# 添加里程碑
+python3 scripts/meta_memory.py milestone --event "首次蒸馏" --details "压缩了 15 条记忆"
+```
+
+#### 8.4 对抗性记忆验证
+
+主动寻找矛盾的记忆并解决：
+
+```bash
+# 查找矛盾
+python3 scripts/adversarial_validation.py find
+
+# 预览解决方案
+python3 scripts/adversarial_validation.py resolve
+
+# 自动解决矛盾
+python3 scripts/adversarial_validation.py resolve --auto
+
+# 分析矛盾情况
+python3 scripts/adversarial_validation.py analyze
+```
+
+#### 8.5 记忆压缩
+
+压缩低频访问的长期记忆，释放存储空间：
+
+```bash
+# 分析压缩潜力
+python3 scripts/memory_compression.py analyze
+
+# 预览压缩
+python3 scripts/memory_compression.py compress --dry-run
+
+# 执行压缩
+python3 scripts/memory_compression.py compress
+
+# 解压记忆
+python3 scripts/memory_compression.py decompress --id 123
 ```
 
 ---
