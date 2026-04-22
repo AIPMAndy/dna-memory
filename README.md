@@ -16,43 +16,6 @@
 
 ---
 
-<<<<<<< HEAD
-## 🔥 v3.0 重大更新：记忆递归进化系统
-
-> **大多数 AI 记忆系统只是在"存"。DNA Memory v3.0 想解决的是：AI 如何像生物一样自我进化。**
-
-### 🆕 核心突破
-
-**1. Evolver 整合：GEP 协议 + 信号驱动进化**
-- 基于 Gene Expression Programming 的记忆演化机制
-- 信号驱动的自适应记忆管理
-- 记忆基因的表达、变异、选择
-
-**2. 自我强化学习循环**
-- 验证记忆是否真的有用
-- 成功 → 强化权重，失败 → 衰减权重
-- 形成"任务-记忆-验证-强化"闭环
-
-**3. 记忆蒸馏**
-- 自动合并相似记忆
-- 提炼高质量核心记忆
-- 减少冗余，提升检索效率
-
-**4. 元记忆追踪**
-- 追踪记忆系统本身的演化
-- 自我修复能力
-- 演化里程碑记录
-
-**5. 对抗性验证**
-- 主动寻找矛盾的记忆
-- 自动解决冲突
-- 保持记忆一致性
-
-**6. 记忆压缩**
-- 冷存储归档低频记忆
-- 释放存储空间
-- 按需解压
-=======
 > 大多数 AI 记忆系统只是在"存"。
 > **DNA Memory** 想解决的是:**AI 如何像人一样学习与进化。**
 
@@ -72,7 +35,6 @@ python3 scripts/dna_memory_daemon.py start
 ```
 
 **详细教程见 → [QUICKSTART.md](./QUICKSTART.md)**
->>>>>>> 529253d (docs: 优化文档结构，降低学习成本)
 
 ---
 
@@ -117,11 +79,7 @@ python3 scripts/dna_memory_daemon.py start
 
 **一句话差异化定位:**
 
-<<<<<<< HEAD
-> DNA Memory v3.0 让 AI Agent 不只是"记住"，而是像生物一样对记忆进行强化、遗忘、归纳、进化和自我修复。
-=======
 > DNA Memory 帮助 AI Agent 不只是"记住",而是像人脑一样对信息进行强化、遗忘、归纳和进化。
->>>>>>> 529253d (docs: 优化文档结构，降低学习成本)
 
 ---
 
@@ -186,15 +144,9 @@ python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py stats
 - **`type:error` / `type:skill` 类型过滤**
 - **SQLite FTS5 全文搜索**
 - FTS5 不可用时自动回退 LIKE 搜索
-<<<<<<< HEAD
-- **智能相关性排序**（混合检索 + 多维度评分）
-- **中文分词优化**（2-3 字切分 + 英文词提取）
-- **上下文感知**（结合当前任务提升相关性）
-=======
 - **🆕 智能相关性排序**(混合检索 + 多维度评分)
 - **🆕 中文分词优化**(2-3 字切分 + 英文词提取)
 - **🆕 上下文感知**(结合当前任务提升相关性)
->>>>>>> 529253d (docs: 优化文档结构，降低学习成本)
 
 示例:
 
@@ -203,11 +155,7 @@ python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py stats
 python3 scripts/evolve.py recall "飞书 API"
 python3 scripts/evolve.py recall "type:error GitHub"
 
-<<<<<<< HEAD
-# 增强版 Recall（智能排序）
-=======
 # 🆕 增强版 Recall(智能排序)
->>>>>>> 529253d (docs: 优化文档结构，降低学习成本)
 python3 scripts/advanced_recall.py "飞书 API" --context "正在调试消息发送"
 python3 scripts/advanced_recall.py "错误" --type error --min-score 0.5
 ```
@@ -379,28 +327,6 @@ python3 scripts/gep_assets.py analyze
 ```text
 dna-memory/
 ├── scripts/
-<<<<<<< HEAD
-│   ├── evolve.py                      # 核心 CLI：remember / recall / stats / reflect / dedupe
-│   ├── dna_memory_daemon.py           # 后台守护：自动 reflect / decay
-│   ├── advanced_recall.py             # 增强版 Recall（智能排序）
-│   ├── enhanced_recall.py             # 增强版 Recall（上下文感知）
-│   ├── memory_quality.py              # 记忆质量评估
-│   ├── memory_graph.py                # 记忆关联图谱
-│   ├── memory_reinforcement.py        # 🔥 自我强化学习
-│   ├── memory_distillation.py         # 🔥 记忆蒸馏
-│   ├── meta_memory.py                 # 🔥 元记忆追踪
-│   ├── adversarial_validation.py      # 🔥 对抗性验证
-│   ├── memory_compression.py          # 🔥 记忆压缩
-│   ├── gep_assets.py                  # 🔥 Evolver 整合
-│   ├── evolution_strategy.py          # 🔥 演化策略
-│   ├── semantic_search.py             # 语义搜索实验模块（可扩展）
-│   ├── session_memory.py              # 会话级记忆
-│   ├── memory_extractor.py            # 自动记忆提取
-│   └── ...
-├── memory/
-│   ├── memory.db                      # SQLite 主库（记忆 + 操作日志）
-│   └── working.json                   # 工作记忆
-=======
 │   ├── evolve.py              # 核心 CLI:remember / recall / stats / reflect / dedupe ...
 │   ├── dna_memory_daemon.py   # 后台守护:自动 reflect / decay
 │   ├── semantic_search.py     # 语义搜索实验模块(可扩展)
@@ -417,7 +343,6 @@ dna-memory/
 ├── memory/
 │   ├── memory.db              # SQLite 主库(记忆 + 操作日志)
 │   └── working.json           # 工作记忆
->>>>>>> 529253d (docs: 优化文档结构，降低学习成本)
 ├── assets/
 │   └── config.json                    # daemon/衰减等配置
 ├── README.md
@@ -579,25 +504,11 @@ Promote 到长期记忆
 - [x] daemon 自动 reflect / decay
 - [x] recall 支持 FTS5 全文搜索
 - [x] launchd 开机自启方案
-<<<<<<< HEAD
-- [x] 智能相关性排序（混合检索 + 多维度评分）
-- [x] 中文分词优化（2-3 字切分）
-- [x] 记忆质量评估系统（自动评分 + 清理）
-- [x] 记忆关联图谱（因果/矛盾检测）
-- [x] 🔥 **自我强化学习循环**
-- [x] 🔥 **记忆蒸馏**
-- [x] 🔥 **元记忆追踪**
-- [x] 🔥 **对抗性验证**
-- [x] 🔥 **记忆压缩**
-- [x] 🔥 **Evolver 整合（GEP 协议）**
-- [ ] 更强的中文分词（接入 jieba）
-=======
 - [x] 🆕 智能相关性排序(混合检索 + 多维度评分)
 - [x] 🆕 中文分词优化(2-3 字切分)
 - [x] 🆕 记忆质量评估系统(自动评分 + 清理)
 - [x] 🆕 记忆关联图谱(因果/矛盾检测)
 - [ ] 更强的中文分词(接入 jieba)
->>>>>>> 529253d (docs: 优化文档结构，降低学习成本)
 - [ ] 真正的 embedding 语义检索接入
 - [ ] 记忆关联图谱可视化增强(Web UI)
 - [ ] 更完整的导入 / 导出 / 迁移工具
@@ -607,11 +518,7 @@ Promote 到长期记忆
 
 ## 🤝 贡献
 
-<<<<<<< HEAD
-欢迎提交 Issue / PR，一起把"AI 记忆"这件事做对。
-=======
 欢迎提交 Issue / PR,一起把"AI 记忆"这件事做对。
->>>>>>> 529253d (docs: 优化文档结构，降低学习成本)
 
 建议优先贡献方向:
 - recall 相关性排序
