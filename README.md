@@ -10,7 +10,7 @@
 [![OpenClaw](https://img.shields.io/badge/Built%20for-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 [![Version](https://img.shields.io/badge/version-3.0-green)](https://github.com/AIPMAndy/dna-memory/releases)
 
-[English](./README_EN.md) | **简体中文** | [快速上手](./QUICKSTART.md)
+[English](./README_EN.md) | **简体中文** | [快速上手](./QUICKSTART.md) | [Multi-Agent 使用指南](./MULTI_AGENT_GUIDE.md)
 
 </div>
 
