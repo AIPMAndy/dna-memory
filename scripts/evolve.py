@@ -325,7 +325,11 @@ def add_memory(content, mem_type="fact", tags="", importance=0.6, short_term=1, 
         except Exception:
             pass  # FTS table may not exist
 
-        log_operation("remember", f"{mem_type}: {content[:50]}")
+        # 在同一事务中记录操作日志
+        cursor.execute("""
+            INSERT INTO operations (operation, details) VALUES (?, ?)
+        """, ("remember", f"{mem_type}: {content[:50]}"))
+
         return memory_id
 
 
