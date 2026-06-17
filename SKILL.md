@@ -1,18 +1,27 @@
 ---
 name: dna-memory
-description: "DNA memory system for AI agents: three-layer architecture (working/short-term/long-term) with active forgetting, pattern summarization, reflection loops, and memory associations. Use when building agents that need persistent memory across sessions, context recall, or when user mentions 记忆/学习/记住/回顾/反思."
-user-invocable: true
-triggers:
-  - remember this
-  - recall what you learned
-  - reflect on past sessions
-  - 记住这个
-  - 回忆一下
-  - 反思一下
-  - 记忆系统
-  - learn from this mistake
-  - DNA memory
+description: DNA memory system for AI agents - three-layer architecture (working/short-term/long-term) with active forgetting, pattern summarization, reflection loops, and memory associations. Use when building agents that need persistent memory across sessions, context recall, or when user mentions 记忆/学习/记住/回顾/反思.
 ---
+
+# DNA Memory - DNA 记忆系统
+
+**When to use this skill:**
+- User asks to remember something across sessions
+- Building agents that need persistent learning
+- User mentions: "remember this", "recall", "reflect", "记住", "回忆", "反思", "记忆系统"
+- After task completion, to extract learnings
+- When debugging repeated mistakes
+
+**IMPORTANT:** This skill provides the DNA Memory system interface. For actual implementation:
+```bash
+# All commands run from the skill directory
+cd ~/.claude/skills/dna-memory
+
+# Core operations
+python3 scripts/evolve.py remember "content" -t type -i importance
+python3 scripts/evolve.py recall "query"
+python3 scripts/evolve.py reflect
+```
 
 # DNA Memory - DNA 记忆系统
 

@@ -1,0 +1,15 @@
+# DNA Memory - 依赖管理
+# 核心功能无外部依赖，只需 Python 3.8+ 标准库
+
+# ============ 可选依赖 ============
+
+# 语义搜索（semantic_search.py）
+# requests>=2.28.0
+
+# 测试
+pytest>=7.0.0
+
+# ============ 说明 ============
+# 核心功能（evolve.py）只依赖 Python 标准库 + SQLite
+# 如需使用语义搜索，取消注释 requests
+# 如需运行测试，安装 pytest

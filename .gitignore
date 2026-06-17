@@ -16,7 +16,17 @@ __pycache__/
 Thumbs.db
 
 # 不要提交实际的记忆数据
-# memory/*.json  # 如果放在项目内的话
-
-# 不要提交实际数据库
+memory/*.json
 memory/*.db
+
+# AI CLI 配置目录（本地环境特定）
+.agents/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.tessl/
+
+# 临时文件
+*.bak
+*.tmp

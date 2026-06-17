@@ -85,24 +85,46 @@ python3 scripts/dna_memory_daemon.py start
 
 ## 🚀 30 秒快速开始
 
+### 方式一：作为 Claude Code Skill 使用（推荐）
+
 ```bash
-# 1) clone 到 OpenClaw skills 目录
-git clone https://github.com/AIPMAndy/dna-memory.git ~/.openclaw/skills/dna-memory
+# 1) clone 到 Claude Code skills 目录
+git clone https://github.com/AIPMAndy/dna-memory.git ~/.claude/skills/dna-memory
 
-# 2) 记录一条偏好
-python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py remember "用户喜欢简洁直接的回复" -t preference -i 0.9
-
-# 3) 搜索记忆
-python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py recall "简洁 回复"
-
-# 4) 查看统计
-python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py stats
+# 2) 在 Claude Code 中直接调用
+/dna-memory
 ```
 
+### 方式二：独立使用
+
+```bash
+# 1) clone 到任意目录
+git clone https://github.com/AIPMAndy/dna-memory.git
+
+# 2) 记录一条偏好
+python3 dna-memory/scripts/evolve.py remember "用户喜欢简洁直接的回复" -t preference -i 0.9
+
+# 3) 搜索记忆
+python3 dna-memory/scripts/evolve.py recall "简洁 回复"
+
+# 4) 查看统计
+python3 dna-memory/scripts/evolve.py stats
+```
+
+### 依赖说明
+
+**核心功能（必需）:**
+- Python 3.8+
+- SQLite（Python 标准库内置）
+
+**可选功能:**
+- 语义搜索 → `pip install requests`（用于调用外部 embedding API）
+- 测试 → `pip install pytest`
+
 **特点:**
-- 核心功能只依赖 Python 标准库 + SQLite
-- 不需要外部数据库
-- 默认本地存储,适合个人 Agent / 本地 Agent / 自动化助手
+- 核心功能零外部依赖
+- 本地优先存储
+- 适合个人 Agent / 本地 Agent / 自动化助手
 
 ---
 
