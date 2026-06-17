@@ -70,13 +70,24 @@ def read_pid(pid_file: Path) -> Optional[int]:
 
 
 def is_pid_running(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
+    """检查进程是否运行（跨平台）"""
+    import platform
+
+    if platform.system() == 'Windows':
+        try:
+            import psutil
+            return psutil.pid_exists(pid)
+        except ImportError:
+            # psutil 不可用，回退到简单检查
+            return True
+    else:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
         return True
-    return True
 
 
 def handle_stop_signal(signum, frame):  # noqa: ANN001,ARG001

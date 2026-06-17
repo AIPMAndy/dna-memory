@@ -185,7 +185,10 @@ def load_working_memory():
 
 
 def save_working_memory(memories):
-    """保存工作记忆"""
+    """保存工作记忆（自动清理）"""
+    # 限制容量
+    if len(memories) > WORKING_MEMORY_MAX:
+        memories = memories[:WORKING_MEMORY_MAX]
     WORKING_MEMORY_FILE.write_text(json.dumps(memories, ensure_ascii=False))
 
 
@@ -227,6 +230,27 @@ def clear_working_memory():
     save_working_memory([])
     log_operation("working_clear", "")
     return []
+
+
+# ============ 文本相似度 ============
+def calculate_similarity(text1: str, text2: str) -> float:
+    """计算文本相似度（支持中文分词）"""
+    try:
+        import jieba
+        words1 = set(jieba.cut_for_search(text1.lower()))
+        words2 = set(jieba.cut_for_search(text2.lower()))
+    except ImportError:
+        # 回退到正则分词
+        words1 = set(re.findall(r'[一-鿿]+|[a-zA-Z]+', text1.lower()))
+        words2 = set(re.findall(r'[一-鿿]+|[a-zA-Z]+', text2.lower()))
+
+    if not words1 or not words2:
+        return 0.0
+
+    intersection = len(words1 & words2)
+    union = len(words1 | words2)
+
+    return intersection / union if union > 0 else 0.0
 
 
 # ============ 核心记忆操作 ============
@@ -597,15 +621,19 @@ def get_stats():
     
     cursor.execute("SELECT AVG(weight) FROM memory")
     stats["avg_weight"] = round(cursor.fetchone()[0] or 0, 3)
-    
+
     # 操作统计
     cursor.execute("""
-        SELECT operation, COUNT(*) 
-        FROM operations 
+        SELECT operation, COUNT(*)
+        FROM operations
         GROUP BY operation
     """)
     stats["operations"] = dict(cursor.fetchall())
-    
+
+    # 容量使用率
+    stats["capacity_usage"] = f"{stats['total']}/{MAX_TOTAL_MEMORIES}"
+    stats["usage_percent"] = round(stats['total'] / MAX_TOTAL_MEMORIES * 100, 1)
+
     conn.close()
     return stats
 
@@ -650,7 +678,7 @@ def cmd_recall(args):
 def cmd_stats(args):
     """显示统计"""
     stats = get_stats()
-    
+
     print("=" * 40)
     print("🧬 DNA Memory 统计")
     print("=" * 40)
@@ -659,6 +687,7 @@ def cmd_stats(args):
     print(f"   长期记忆: {stats['long_term']}")
     print(f"   记忆关联: {stats['relations']}")
     print(f"   平均权重: {stats['avg_weight']}")
+    print(f"   容量使用: {stats['capacity_usage']} ({stats['usage_percent']}%)")
     print("\n📈 操作统计:")
     for op, count in stats.get("operations", {}).items():
         print(f"   {op}: {count}")
@@ -753,11 +782,37 @@ def find_patterns():
     return top
 
 
+def check_pattern_exists(pattern: str, threshold: float = 0.8) -> bool:
+    """检查相似 pattern 是否已存在"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT content FROM memory WHERE type = 'pattern'")
+
+    for (existing,) in cursor.fetchall():
+        similarity = calculate_similarity(pattern, existing)
+        if similarity > threshold:
+            conn.close()
+            return True
+
+    conn.close()
+    return False
+
+
 def cmd_reflect(args):
     """反思：归纳模式 + 晋升到长期记忆"""
     print("🔄 开始反思...")
     keywords = find_patterns()
     print(f"\n📊 关键词模式: {', '.join(keywords[:8])}")
+
+    # 检查是否需要记录 pattern
+    if keywords:
+        pattern_content = f"常用关键词: {', '.join(keywords[:5])}"
+        if not check_pattern_exists(pattern_content):
+            add_memory(pattern_content, "pattern", "", 0.9, 0, 1)
+            print(f"✨ 记录新模式: {pattern_content}")
+        else:
+            print(f"⏭️  相似模式已存在，跳过")
+
     promoted = auto_promote(
         threshold=float(getattr(args, 'threshold') or PROMOTE_THRESHOLD),
         min_age_days=int(getattr(args, 'min_age') or 3)
