@@ -17,18 +17,24 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import argparse
 import re
+import fcntl
+from contextlib import contextmanager
 
 # ============ 配置 ============
 MEMORY_DIR = Path(__file__).parent.parent / "memory"
 MEMORY_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = MEMORY_DIR / "memory.db"
 WORKING_MEMORY_FILE = MEMORY_DIR / "working.json"
+LOCK_FILE = Path("/tmp/dna-memory.lock")
 
 # 记忆配置
 WORKING_MEMORY_MAX = 7  # 工作记忆容量
 FORGET_THRESHOLD = 0.25  # 遗忘阈值
 DECAY_FACTOR = 0.95  # 衰减因子
 SHORT_TERM_CAPACITY = 100  # 短期记忆容量
+MAX_TOTAL_MEMORIES = 10000  # 总记忆容量上限
+MAX_SHORT_TERM = 1000  # 短期记忆上限
+MAX_LONG_TERM = 5000  # 长期记忆上限
 AUTO_LINK_SIMILARITY = 0.7  # 自动关联相似度阈值
 RECENCY_HALF_LIFE_DAYS = 30.0  # 访问敏感衰减的半衰期（天）
 
@@ -41,7 +47,7 @@ def init_db():
     """初始化数据库"""
     conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
-    
+
     # 主记忆表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS memory (
@@ -68,7 +74,7 @@ def init_db():
         )
         # Back-fill: treat existing memories as accessed at their last updated time
         cursor.execute("UPDATE memory SET last_accessed = updated WHERE last_accessed IS NULL")
-    
+
     # 记忆关联表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS memory_relations (
@@ -82,7 +88,7 @@ def init_db():
             FOREIGN KEY (memory_id2) REFERENCES memory(id)
         )
     """)
-    
+
     # 操作日志
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS operations (
@@ -92,7 +98,7 @@ def init_db():
             timestamp REAL DEFAULT (strftime('%s', 'now'))
         )
     """)
-    
+
     # FTS5 全文索引（如果不存在则创建）
     try:
         cursor.execute("""
@@ -104,13 +110,66 @@ def init_db():
         """)
     except Exception:
         pass  # FTS5 may not be available on all builds
-    
+
+    # 创建性能优化索引
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_memory_type ON memory(type)",
+        "CREATE INDEX IF NOT EXISTS idx_memory_weight ON memory(weight DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_memory_layer ON memory(short_term, long_term)",
+        "CREATE INDEX IF NOT EXISTS idx_memory_accessed ON memory(last_accessed DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_memory_created ON memory(created DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_memory_type_weight ON memory(type, weight DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_relations_mem1 ON memory_relations(memory_id1)",
+        "CREATE INDEX IF NOT EXISTS idx_relations_mem2 ON memory_relations(memory_id2)",
+    ]
+
+    for index_sql in indexes:
+        try:
+            cursor.execute(index_sql)
+        except Exception:
+            pass
+
     conn.commit()
     return conn
 
 
+@contextmanager
+def memory_transaction(timeout: int = 5):
+    """
+    统一的锁和事务管理
+    """
+    lock_fd = None
+    conn = None
+
+    try:
+        # 获取文件锁
+        lock_fd = open(LOCK_FILE, 'w')
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+        # 打开数据库连接
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.execute("BEGIN EXCLUSIVE")
+
+        yield conn
+
+        # 提交事务
+        conn.commit()
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        raise
+
+    finally:
+        if conn:
+            conn.close()
+        if lock_fd:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+
+
 def get_db():
-    """获取数据库连接"""
+    """获取数据库连接（简单场景使用，复杂场景用 memory_transaction）"""
     return init_db()
 
 
@@ -171,60 +230,113 @@ def clear_working_memory():
 
 
 # ============ 核心记忆操作 ============
+def sanitize_keyword(keyword: str) -> str:
+    """
+    清理用户输入，防止 SQL 注入
+    只保留：字母、数字、中文、空格
+    """
+    # 只允许安全字符
+    sanitized = re.sub(r'[^\w\s一-鿿]', '', keyword)
+    # 限制长度
+    return sanitized[:100]
+
+
+def sanitize_keywords(query: str) -> list:
+    """清理并分词"""
+    keywords = [sanitize_keyword(k.strip()) for k in query.split() if k.strip()]
+    # 限制关键词数量
+    return keywords[:10]
+
+
 def add_memory(content, mem_type="fact", tags="", importance=0.6, short_term=1, long_term=0):
-    """添加记忆"""
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    now = time.time()
-    cursor.execute("""
-        INSERT INTO memory (content, type, tags, weight, short_term, long_term, created, updated, last_accessed)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (content, mem_type, tags, importance, short_term, long_term, now, now, now))
-    
-    memory_id = cursor.lastrowid
-    
-    # 同步更新 FTS5 索引
-    try:
-        cursor.execute("INSERT INTO memory_fts(rowid, content, tags, type) VALUES (?, ?, ?, ?)",
-                       (memory_id, content, tags, mem_type))
-    except Exception:
-        pass  # FTS table may not exist
-    
-    conn.commit()
-    conn.close()
-    
-    log_operation("remember", f"{mem_type}: {content[:50]}")
-    return memory_id
+    """添加记忆（带容量限制）"""
+    with memory_transaction() as conn:
+        cursor = conn.cursor()
+
+        # 检查总数
+        cursor.execute("SELECT COUNT(*) FROM memory")
+        total = cursor.fetchone()[0]
+
+        if total >= MAX_TOTAL_MEMORIES:
+            # 删除最低权重的短期记忆
+            cursor.execute("""
+                DELETE FROM memory
+                WHERE id IN (
+                    SELECT id FROM memory
+                    WHERE short_term = 1
+                    ORDER BY weight ASC, created ASC
+                    LIMIT 1
+                )
+            """)
+            print("⚠️ 达到容量上限，已删除最低权重记忆")
+
+        # 检查短期记忆数量
+        cursor.execute("SELECT COUNT(*) FROM memory WHERE short_term = 1")
+        short_term_count = cursor.fetchone()[0]
+
+        if short_term_count >= MAX_SHORT_TERM:
+            # 删除最老的低权重短期记忆
+            cursor.execute("""
+                DELETE FROM memory
+                WHERE id IN (
+                    SELECT id FROM memory
+                    WHERE short_term = 1
+                    ORDER BY weight ASC, created ASC
+                    LIMIT 10
+                )
+            """)
+
+        now = time.time()
+        cursor.execute("""
+            INSERT INTO memory (content, type, tags, weight, short_term, long_term, created, updated, last_accessed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (content, mem_type, tags, importance, short_term, long_term, now, now, now))
+
+        memory_id = cursor.lastrowid
+
+        # 同步更新 FTS5 索引
+        try:
+            cursor.execute("INSERT INTO memory_fts(rowid, content, tags, type) VALUES (?, ?, ?, ?)",
+                           (memory_id, content, tags, mem_type))
+        except Exception:
+            pass  # FTS table may not exist
+
+        log_operation("remember", f"{mem_type}: {content[:50]}")
+        return memory_id
 
 
 def search_memories(query, limit=10):
-    """搜索记忆 - FTS5 全文搜索 + LIKE 回退，支持多关键词、类型过滤"""
+    """搜索记忆 - FTS5 全文搜索 + LIKE 回退，支持多关键词、类型过滤（安全版本）"""
     conn = get_db()
     cursor = conn.cursor()
-    
+
     # 解析类型过滤 (e.g. "type:skill 飞书")
     type_filter = None
     clean_query = query
     type_match = re.match(r'type:(\w+)\s+(.*)', query)
     if type_match:
         type_filter = type_match.group(1)
+        # 验证类型是否在白名单中
+        VALID_TYPES = ['fact', 'preference', 'skill', 'error', 'pattern', 'insight']
+        if type_filter not in VALID_TYPES:
+            type_filter = None
         clean_query = type_match.group(2)
-    
-    keywords = [k.strip() for k in clean_query.split() if k.strip()]
+
+    # 清理关键词，防止 SQL 注入
+    keywords = sanitize_keywords(clean_query)
     if not keywords:
         conn.close()
         return []
-    
+
     results = []
-    
-    # 尝试 FTS5 搜索
+
+    # 尝试 FTS5 搜索（使用参数化查询）
     try:
         fts_query = " AND ".join(f'"{kw}"' for kw in keywords)
         if type_filter:
             fts_query += f' AND type:{type_filter}'
-        
-        cursor.execute(f"""
+
+        cursor.execute("""
             SELECT m.id, m.content, m.type, m.tags, m.weight, m.short_term, m.long_term,
                    rank
             FROM memory_fts f
@@ -233,16 +345,19 @@ def search_memories(query, limit=10):
             ORDER BY rank
             LIMIT ?
         """, (fts_query, limit))
-        
+
         for row in cursor.fetchall():
             layer = "长期" if row[6] else ("短期" if row[5] else "?")
             results.append({
                 "id": row[0], "content": row[1], "type": row[2],
                 "tags": row[3], "weight": row[4], "layer": layer
             })
-    except Exception:
-        pass
-    
+    except Exception as e:
+        # 记录错误但不暴露细节
+        import os
+        if os.getenv('DNA_MEMORY_DEBUG', '0') == '1':
+            print(f"⚠️ FTS5 搜索失败: {e}")
+
     # FTS5 没结果或不可用，回退到 LIKE 搜索
     if not results:
         conditions = []
@@ -250,22 +365,22 @@ def search_memories(query, limit=10):
         for kw in keywords:
             conditions.append("(content LIKE ? OR tags LIKE ? OR type LIKE ?)")
             params.extend([f"%{kw}%", f"%{kw}%", f"%{kw}%"])
-        
+
         where = " AND ".join(conditions)
         if type_filter:
             where = f"({where}) AND type = ?"
             params.append(type_filter)
-        
+
         params.append(limit)
-        
+
         cursor.execute(f"""
             SELECT id, content, type, tags, weight, short_term, long_term
-            FROM memory 
+            FROM memory
             WHERE {where}
             ORDER BY weight DESC, updated DESC
             LIMIT ?
         """, params)
-        
+
         for row in cursor.fetchall():
             layer = "长期" if row[6] else ("短期" if row[5] else "?")
             results.append({

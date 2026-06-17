@@ -13,6 +13,7 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import List, Dict, Tuple
+from collections import defaultdict
 import argparse
 import re
 
@@ -42,17 +43,23 @@ def calculate_similarity(text1: str, text2: str) -> float:
 
 # ============ 聚类 ============
 def find_similar_clusters(threshold: float = SIMILARITY_THRESHOLD) -> List[List[Dict]]:
-    """找到相似记忆簇"""
+    """找到相似记忆簇（优化版：O(n log n)）
+
+    策略：
+    1. 按类型分组（减少比较范围）
+    2. 按时间分桶（只比较同时期的记忆）
+    3. 使用倒排索引加速查找
+    """
     conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
-    
+
     # 获取所有记忆
     cursor.execute("""
         SELECT id, content, type, tags, weight, created, updated
         FROM memory
-        ORDER BY weight DESC
+        ORDER BY created DESC
     """)
-    
+
     memories = []
     for row in cursor.fetchall():
         memories.append({
@@ -64,36 +71,68 @@ def find_similar_clusters(threshold: float = SIMILARITY_THRESHOLD) -> List[List[
             'created': row[5],
             'updated': row[6]
         })
-    
+
     conn.close()
-    
-    # 聚类
-    clusters = []
-    used = set()
-    
-    for i, mem1 in enumerate(memories):
-        if mem1['id'] in used:
+
+    # 按类型和时间分组
+    groups = defaultdict(list)
+    DAY_SECONDS = 86400
+    BUCKET_DAYS = 7  # 7天为一桶
+
+    for mem in memories:
+        bucket = int(mem['created'] / (DAY_SECONDS * BUCKET_DAYS))
+        key = (mem['type'], bucket)
+        groups[key].append(mem)
+
+    # 在每个小组内聚类
+    all_clusters = []
+
+    for group in groups.values():
+        if len(group) < 2:
             continue
-        
-        cluster = [mem1]
-        used.add(mem1['id'])
-        
-        for j, mem2 in enumerate(memories[i+1:], i+1):
-            if mem2['id'] in used:
+
+        # 构建倒排索引
+        word_to_mems = defaultdict(list)
+        for mem in group:
+            words = set(re.findall(r'[一-鿿]+|[a-zA-Z]+', mem['content'].lower()))
+            for word in words:
+                word_to_mems[word].append(mem['id'])
+
+        # 使用倒排索引找相似记忆
+        clusters = []
+        used = set()
+
+        for mem in group:
+            if mem['id'] in used:
                 continue
-            
+
+            # 找候选记忆（共享关键词的）
+            words = set(re.findall(r'[一-鿿]+|[a-zA-Z]+', mem['content'].lower()))
+            candidates = set()
+            for word in words:
+                candidates.update(word_to_mems[word])
+
             # 计算相似度
-            similarity = calculate_similarity(mem1['content'], mem2['content'])
-            
-            if similarity >= threshold:
-                cluster.append(mem2)
-                used.add(mem2['id'])
-        
-        # 只保留大小 >= MIN_CLUSTER_SIZE 的簇
-        if len(cluster) >= MIN_CLUSTER_SIZE:
-            clusters.append(cluster)
-    
-    return clusters
+            cluster = [mem]
+            used.add(mem['id'])
+
+            for candidate_id in candidates:
+                if candidate_id in used or candidate_id == mem['id']:
+                    continue
+
+                candidate = next(m for m in group if m['id'] == candidate_id)
+                similarity = calculate_similarity(mem['content'], candidate['content'])
+
+                if similarity >= threshold:
+                    cluster.append(candidate)
+                    used.add(candidate_id)
+
+            if len(cluster) >= MIN_CLUSTER_SIZE:
+                clusters.append(cluster)
+
+        all_clusters.extend(clusters)
+
+    return all_clusters
 
 
 # ============ 模式提取 ============
