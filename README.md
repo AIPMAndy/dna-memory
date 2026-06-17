@@ -45,6 +45,7 @@ python3 scripts/dna_memory_daemon.py start
 - ✅ **智能搜索**（FTS5 全文搜索 + 多维度排序）
 - ✅ **自动维护**（后台 daemon：reflect + decay）
 - ✅ **权重强化/衰减**（高频使用提升，长期不用衰减）
+- 🔥 **MCP 服务器集成**（Claude Code 直接调用）
 
 **高级特性**（可选）：
 - ⚡ 记忆质量评估（自动评分 + 清理）
@@ -68,6 +69,7 @@ python3 scripts/dna_memory_daemon.py start
 | 记忆质量评估 | ❌ | ❌ | ❌ | ✅ **自动评分+清理** |
 | 关联图谱 | ❌ | ❌ | ❌ | ✅ **因果/矛盾检测** |
 | 智能相关性排序 | ⚠️ | ⚠️ | ⚠️ | ✅ **混合检索+重排序** |
+| 🔥 **MCP 服务器集成** | ❌ | ❌ | ❌ | ✅ **Claude Code 原生支持** |
 | 🔥 **自我强化学习** | ❌ | ❌ | ❌ | ✅ **验证+强化/衰减** |
 | 🔥 **记忆蒸馏** | ❌ | ❌ | ❌ | ✅ **合并相似记忆** |
 | 🔥 **元记忆追踪** | ❌ | ❌ | ❌ | ✅ **系统演化追踪** |
@@ -85,7 +87,31 @@ python3 scripts/dna_memory_daemon.py start
 
 ## 🚀 30 秒快速开始
 
-### 方式一：作为 Claude Code Skill 使用（推荐）
+### 方式一：作为 Claude Code MCP 服务器使用（🔥 最新推荐）
+
+让 Claude Code 直接调用 DNA Memory，无需手动命令！
+
+```bash
+# 1) clone 项目
+git clone https://github.com/AIPMAndy/dna-memory.git
+
+# 2) 安装 MCP SDK（需要 Python 3.10+）
+pip3 install mcp
+
+# 3) 运行自动安装脚本
+cd dna-memory/mcp-server && ./install.sh
+
+# 4) 重启 Claude Desktop
+
+# 5) 在 Claude Code 中直接使用
+"用 dna_remember 记录：用户喜欢简洁直接的回复"
+"用 dna_recall 搜索相关记忆"
+"用 dna_stats 查看统计"
+```
+
+**详细指南** → [MCP_INTEGRATION_GUIDE.md](./MCP_INTEGRATION_GUIDE.md)
+
+### 方式二：作为 Claude Code Skill 使用
 
 ```bash
 # 1) clone 到 Claude Code skills 目录
@@ -95,7 +121,7 @@ git clone https://github.com/AIPMAndy/dna-memory.git ~/.claude/skills/dna-memory
 /dna-memory
 ```
 
-### 方式二：独立使用
+### 方式三：独立使用
 
 ```bash
 # 1) clone 到任意目录
