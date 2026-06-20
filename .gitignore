@@ -30,3 +30,7 @@ memory/*.db
 # 临时文件
 *.bak
 *.tmp
+web-ui/.next/
+web-ui/node_modules/
+memory/backups/
+*.db
