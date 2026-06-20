@@ -1,7 +1,9 @@
-#!/opt/homebrew/opt/python@3.11/bin/python3.11
+#!/usr/bin/env python3
 """
 DNA Memory MCP Server
 Exposes DNA Memory functionality through Model Context Protocol
+
+Note: Requires Python 3.10+
 """
 
 import asyncio
@@ -24,10 +26,12 @@ from mcp.types import (
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent))
 
 import handlers
 import config
 import evolve
+import hooks
 
 # Setup logging
 logging.basicConfig(
@@ -244,6 +248,21 @@ async def list_tools() -> list[Tool]:
                     }
                 }
             }
+        ),
+        Tool(
+            name="dna_auto_collect",
+            description="Control automatic memory collection from conversations. Enable/disable auto-collection or get collector stats.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["enable", "disable", "status"],
+                        "description": "Action: enable, disable, or get status"
+                    }
+                },
+                "required": ["action"]
+            }
         )
     ]
 
@@ -273,6 +292,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             result = handlers.handle_promote(**arguments)
         elif name == "dna_forget":
             result = handlers.handle_forget(**arguments)
+        elif name == "dna_auto_collect":
+            result = handlers.handle_auto_collect(**arguments)
         else:
             result = {
                 "success": False,
@@ -373,6 +394,13 @@ async def main():
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}", exc_info=True)
         sys.exit(1)
+
+    # Register message hooks (for future MCP protocol support)
+    try:
+        message_hook = hooks.register_hooks(app)
+        logger.info("Message hooks registered")
+    except Exception as e:
+        logger.warning(f"Failed to register hooks (expected until MCP protocol supports it): {e}")
 
     # Run server
     async with stdio_server() as (read_stream, write_stream):

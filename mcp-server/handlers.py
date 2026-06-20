@@ -500,3 +500,54 @@ def get_high_value_memories() -> dict:
             "success": False,
             "error": str(e)
         }
+
+def handle_auto_collect(action: str) -> dict:
+    """
+    Handle dna_auto_collect tool
+    Control automatic memory collection
+    """
+    try:
+        sys.path.insert(0, str(Path(__file__).parent))
+        from hooks import get_message_hook
+
+        hook = get_message_hook()
+
+        if action == "enable":
+            hook.enable()
+            return {
+                "success": True,
+                "message": "Auto-collection enabled",
+                "status": "enabled"
+            }
+        elif action == "disable":
+            hook.disable()
+            return {
+                "success": True,
+                "message": "Auto-collection disabled",
+                "status": "disabled"
+            }
+        elif action == "status":
+            stats = hook.get_stats()
+
+            # Get auto-collector stats if available
+            collector_stats = {}
+            if hook.auto_collector:
+                collector_stats = hook.auto_collector.get_stats()
+
+            return {
+                "success": True,
+                "hook": stats,
+                "collector": collector_stats,
+                "message": f"Auto-collection is {'enabled' if stats['enabled'] else 'disabled'}"
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown action: {action}"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Auto-collection feature requires hooks module"
+        }

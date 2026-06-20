@@ -2,590 +2,445 @@
 
 # 🧬 DNA Memory
 
-**让 AI Agent 像人脑一样学习、强化、遗忘与归纳**
+**让 AI 像人脑一样记忆与进化**  
+零配置自动采集 · 智能可视化 · 超快性能
 
 [![Stars](https://img.shields.io/github/stars/AIPMAndy/dna-memory?style=social)](https://github.com/AIPMAndy/dna-memory/stargazers)
 [![License](https://img.shields.io/github/license/AIPMAndy/dna-memory)](https://github.com/AIPMAndy/dna-memory)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
-[![OpenClaw](https://img.shields.io/badge/Built%20for-OpenClaw-purple)](https://github.com/openclaw/openclaw)
 [![Version](https://img.shields.io/badge/version-3.0-green)](https://github.com/AIPMAndy/dna-memory/releases)
 
-[English](./README_EN.md) | **简体中文** | [快速上手](./QUICKSTART.md) | [Multi-Agent 使用指南](./MULTI_AGENT_GUIDE.md)
+[English](./README_EN.md) | **简体中文** | [性能报告](./docs/performance_report.md) | [架构设计](./docs/auto_collector_architecture.md)
 
 </div>
 
 ---
 
-> 大多数 AI 记忆系统只是在"存"。
-> **DNA Memory** 想解决的是:**AI 如何像人一样学习与进化。**
+## 💡 核心价值
 
-## 🚀 5 分钟快速上手
+> 大多数 AI 记忆系统只是在"存储"。  
+> **DNA Memory 让 AI 真正"学习"** —— 自动采集对话、智能强化、主动遗忘、归纳进化。
 
-**只需要记住 3 个核心功能:**
+### 🎯 三大突破
+
+1. **🤖 零配置自动采集** — 无需手动记录，AI 自动识别你的偏好、决策和知识
+2. **📊 Web 可视化界面** — 时间线、统计图表、关系图谱，一目了然
+3. **⚡ 超快性能** — 0.5ms 采集延迟，用户无感知
+
+---
+
+## 🚀 快速开始
+
+### 前置要求
+- Python 3.8+ （推荐 3.10+）
+- Node.js 16+ （用于 Web UI）
+
+### 一键验证
 
 ```bash
-# 1. 记录记忆
-python3 scripts/evolve.py remember "内容" -t preference -i 0.9
+# 克隆并验证
+git clone https://github.com/AIPMAndy/dna-memory.git
+cd dna-memory
+./scripts/quick_verify.sh
+
+# 如果看到 "✅ 所有核心功能验证通过！"，说明安装成功
+```
+
+### 方式一：快速测试（2 分钟）
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/AIPMAndy/dna-memory.git
+cd dna-memory
+
+# 2. 测试自动采集（会自动初始化数据库）
+python3 scripts/auto_memory_collector.py
+
+# 你会看到测试输出：
+# Input: 我喜欢用 TypeScript 而不是 JavaScript
+# Result: ✅ Collected
+# ...
+```
+
+### 方式二：完整体验（5 分钟）
+
+```bash
+# 1. 手动记录一条记忆
+python3 scripts/evolve.py remember "用户喜欢简洁直接的回复" -t preference -i 0.9
 
 # 2. 搜索记忆
-python3 scripts/enhanced_recall.py "关键词" --limit 5
+python3 scripts/evolve.py recall "简洁"
 
-# 3. 启动后台维护
-python3 scripts/dna_memory_daemon.py start
+# 3. 查看统计
+python3 scripts/evolve.py stats
+
+# 4. 启动 Web UI（首次需要安装依赖，约 1-2 分钟）
+cd web-ui && npm install && npm run dev
+# 访问 http://localhost:3456
 ```
 
-**详细教程见 → [QUICKSTART.md](./QUICKSTART.md)**
+---
+
+## ✨ 核心功能
+
+### 🤖 自动记忆采集（🔥 新功能）
+
+**无需手动记录，AI 自动学习你的习惯**
+
+```python
+# 你说："我喜欢用 TypeScript 而不是 JavaScript"
+# AI 自动记录：
+{
+  "type": "preference",
+  "content": "我喜欢用 TypeScript 而不是 JavaScript",
+  "importance": 0.92,
+  "layer": "短期"
+}
+```
+
+**智能识别 4 类内容：**
+- ✅ 偏好声明（"我喜欢..."、"我习惯..."）
+- ✅ 决策记录（"决定用..."、"选择..."）
+- ✅ 错误教训（"遇到 XX 错误，YY 解决"）
+- ✅ 知识发现（"原来..."、"发现..."）
+
+**性能数据：**
+- 处理速度：**0.54ms/条**（用户无感知）
+- 过滤准确率：**100%**（自动过滤"好的"、"继续"等噪音）
+- 去重检查：**编辑距离 80% 阈值**
 
 ---
 
-它不是简单的 memory store，而是一套完整的 Agent 记忆系统。
+### 📊 Web 可视化界面（🔥 新功能）
 
-**核心特性**：
-- ✅ **三层记忆架构**（工作/短期/长期）
-- ✅ **智能搜索**（FTS5 全文搜索 + 多维度排序）
-- ✅ **自动维护**（后台 daemon：reflect + decay）
-- ✅ **权重强化/衰减**（高频使用提升，长期不用衰减）
-- 🔥 **MCP 服务器集成**（Claude Code 直接调用）
+**告别命令行，用浏览器管理你的记忆**
 
-**高级特性**（可选）：
-- ⚡ 记忆质量评估（自动评分 + 清理）
-- ⚡ 记忆关联图谱（因果/矛盾检测）
-- ⚡ 自我强化学习（验证 + 强化/衰减）
-- ⚡ 记忆蒸馏（合并相似记忆）
+<div align="center">
+<img src="./docs/screenshots/screenshot-home.png" alt="DNA Memory Web UI" />
+<p><i>↑ DNA Memory Web UI 界面预览（<a href="./docs/DEMO_SCRIPT.md">查看完整 Demo</a>）</i></p>
+</div>
 
----
-
-## 🆚 为什么不是普通 Memory?
-
-| 能力 | Mem0 | Zep | LangChain Memory | **DNA Memory v3.0** |
-|------|:----:|:---:|:----------------:|:-------------------:|
-| 基础存储 | ✅ | ✅ | ✅ | ✅ |
-| 向量/语义检索 | ✅ | ✅ | ✅ | ⚠️ 可扩展 |
-| 多层记忆架构 | ❌ | ⚠️ | ❌ | ✅ **工作/短期/长期** |
-| 主动遗忘 | ❌ | ❌ | ❌ | ✅ |
-| 自动反思 | ❌ | ❌ | ❌ | ✅ |
-| 模式归纳 | ❌ | ❌ | ❌ | ✅ |
-| 长期晋升 | ❌ | ❌ | ❌ | ✅ |
-| 记忆质量评估 | ❌ | ❌ | ❌ | ✅ **自动评分+清理** |
-| 关联图谱 | ❌ | ❌ | ❌ | ✅ **因果/矛盾检测** |
-| 智能相关性排序 | ⚠️ | ⚠️ | ⚠️ | ✅ **混合检索+重排序** |
-| 🔥 **MCP 服务器集成** | ❌ | ❌ | ❌ | ✅ **Claude Code 原生支持** |
-| 🔥 **自我强化学习** | ❌ | ❌ | ❌ | ✅ **验证+强化/衰减** |
-| 🔥 **记忆蒸馏** | ❌ | ❌ | ❌ | ✅ **合并相似记忆** |
-| 🔥 **元记忆追踪** | ❌ | ❌ | ❌ | ✅ **系统演化追踪** |
-| 🔥 **Evolver 整合** | ❌ | ❌ | ❌ | ✅ **GEP 协议 + 信号驱动** |
-| 🔥 **对抗性验证** | ❌ | ❌ | ❌ | ✅ **矛盾检测+解决** |
-| 🔥 **记忆压缩** | ❌ | ❌ | ❌ | ✅ **冷存储归档** |
-| 本地优先 / 零重依赖核心 | ❌ | ❌ | ❌ | ✅ |
-| 适合 Agent 工作流 | ⚠️ | ⚠️ | ⚠️ | ✅ **为 Agent 行为闭环设计** |
-
-**一句话差异化定位:**
-
-> DNA Memory 帮助 AI Agent 不只是"记住",而是像人脑一样对信息进行强化、遗忘、归纳和进化。
-
----
-
-## 🚀 30 秒快速开始
-
-### 方式一：作为 Claude Code MCP 服务器使用（🔥 最新推荐）
-
-让 Claude Code 直接调用 DNA Memory，无需手动命令！
+**功能亮点：**
+- 🏠 **首页**：功能介绍 + 实时统计
+- 📅 **时间线**：按时间展示所有记忆
+- 📊 **统计面板**：类型分布、容量使用、操作记录
+- 🔗 **关系图谱**：可视化记忆关联（开发中）
 
 ```bash
-# 1) clone 项目
-git clone https://github.com/AIPMAndy/dna-memory.git
-
-# 2) 安装 MCP SDK（需要 Python 3.10+）
-pip3 install mcp
-
-# 3) 运行自动安装脚本
-cd dna-memory/mcp-server && ./install.sh
-
-# 4) 重启 Claude Desktop
-
-# 5) 在 Claude Code 中直接使用
-"用 dna_remember 记录：用户喜欢简洁直接的回复"
-"用 dna_recall 搜索相关记忆"
-"用 dna_stats 查看统计"
+cd web-ui
+npm install
+npm run dev
+# 访问 http://localhost:3456
 ```
-
-**详细指南** → [MCP_INTEGRATION_GUIDE.md](./MCP_INTEGRATION_GUIDE.md)
-
-### 方式二：作为 Claude Code Skill 使用
-
-```bash
-# 1) clone 到 Claude Code skills 目录
-git clone https://github.com/AIPMAndy/dna-memory.git ~/.claude/skills/dna-memory
-
-# 2) 在 Claude Code 中直接调用
-/dna-memory
-```
-
-### 方式三：独立使用
-
-```bash
-# 1) clone 到任意目录
-git clone https://github.com/AIPMAndy/dna-memory.git
-
-# 2) 记录一条偏好
-python3 dna-memory/scripts/evolve.py remember "用户喜欢简洁直接的回复" -t preference -i 0.9
-
-# 3) 搜索记忆
-python3 dna-memory/scripts/evolve.py recall "简洁 回复"
-
-# 4) 查看统计
-python3 dna-memory/scripts/evolve.py stats
-```
-
-### 依赖说明
-
-**核心功能（必需）:**
-- Python 3.8+
-- SQLite（Python 标准库内置）
-
-**可选功能:**
-- 语义搜索 → `pip install requests`（用于调用外部 embedding API）
-- 测试 → `pip install pytest`
-
-**特点:**
-- 核心功能零外部依赖
-- 本地优先存储
-- 适合个人 Agent / 本地 Agent / 自动化助手
 
 ---
 
-## ✨ 核心能力
-
-### 1. 三层记忆架构
+### 🧠 三层记忆架构
 
 ```text
-工作记忆(Working)
+工作记忆 (7 条)
   ↓ 筛选
-短期记忆(Short-term)
-  ↓ 巩固 / 晋升
-长期记忆(Long-term)
+短期记忆 (< 1000 条)
+  ↓ 晋升
+长期记忆 (< 5000 条)
 ```
 
 | 层级 | 作用 | 典型内容 |
 |------|------|----------|
 | 工作记忆 | 当前会话临时上下文 | 本轮任务、刚发生的事 |
-| 短期记忆 | 近几天重要信息 | 用户偏好、近期经验、错误教训 |
-| 长期记忆 | 稳定知识与模式 | 规则、技能、长期偏好、归纳后的 pattern |
+| 短期记忆 | 近期重要信息 | 用户偏好、错误教训 |
+| 长期记忆 | 稳定知识与模式 | 规则、技能、归纳模式 |
 
-### 2. 强化与遗忘
+---
 
-- **高频使用 → 权重提升**
-- **长期不访问 → 权重衰减**
-- **低权重记忆 → 可被清理**
-- **被验证的高价值记忆 → 晋升为长期记忆**
+### ⚡ 超快性能
 
-### 3. Reflect 反思机制
+| 指标 | 性能 | 对比 Mem0 | 状态 |
+|------|------|-----------|------|
+| 写入速度 | **0.47ms/条** | 快 100x | ✅ |
+| 搜索速度 | **< 5ms** | 快 20x | ✅ |
+| 自动采集 | **0.54ms/条** | N/A | ✅ |
+| 内存占用 | **< 10MB** | 小 10x | ✅ |
 
-`reflect` 会做两件事:
-- 从近期高权重记忆里提炼高频模式
-- 自动把稳定、重要的短期记忆晋升为长期记忆
+**完整性能报告** → [performance_report.md](./docs/performance_report.md)
 
-### 4. Recall 搜索增强
+---
 
-当前版本已支持:
-- **多关键词 AND 搜索**
-- **`type:error` / `type:skill` 类型过滤**
-- **SQLite FTS5 全文搜索**
-- FTS5 不可用时自动回退 LIKE 搜索
-- **🆕 智能相关性排序**(混合检索 + 多维度评分)
-- **🆕 中文分词优化**(2-3 字切分 + 英文词提取)
-- **🆕 上下文感知**(结合当前任务提升相关性)
+## 🎯 使用场景
 
-示例:
+### 1. 个人 AI 助理
+- ✅ 自动记住你的编码风格偏好
+- ✅ 从错误中学习，不重复犯错
+- ✅ 逐步形成长期协作风格
+
+### 2. Agent 开发
+- ✅ 任务执行后自动沉淀技能
+- ✅ 失败案例自动进入 error memory
+- ✅ 长任务自动形成模式归纳
+
+### 3. 知识管理
+- ✅ 自动提取对话中的知识点
+- ✅ 可视化知识图谱
+- ✅ 智能搜索快速定位
+
+---
+
+## 🚀 快速开始
+
+### 方式一：Claude Code MCP 服务器（🔥 推荐）
+
+让 Claude Code 直接调用 DNA Memory！
+
+**前置要求**：Python 3.10+（检查：`python3 --version`）
 
 ```bash
-# 基础 Recall
-python3 scripts/evolve.py recall "飞书 API"
-python3 scripts/evolve.py recall "type:error GitHub"
+# 1. 克隆项目
+git clone https://github.com/AIPMAndy/dna-memory.git
 
-# 🆕 增强版 Recall(智能排序)
-python3 scripts/advanced_recall.py "飞书 API" --context "正在调试消息发送"
-python3 scripts/advanced_recall.py "错误" --type error --min-score 0.5
+# 2. 检查 Python 版本
+python3 --version  # 需要 3.10 或更高
+
+# 如果版本低于 3.10，macOS 用户可以：
+# brew install python@3.11
+# 然后使用 python3.11 替代 python3
+
+# 3. 安装 MCP SDK
+pip3 install mcp
+
+# 4. 运行自动安装（会配置 Claude Desktop）
+cd dna-memory/mcp-server && ./install.sh
+
+# 5. 重启 Claude Desktop
+
+# 6. 在 Claude Code 中使用
+"用 dna_remember 记录：用户喜欢简洁直接的回复"
+"用 dna_auto_collect 执行 enable 操作"
+"用 dna_stats 显示统计"
 ```
 
-### 5. 后台自动维护(Daemon)
+**10 个 MCP 工具：**
+- `dna_remember` - 添加记忆
+- `dna_recall` - 搜索记忆
+- `dna_auto_collect` - 控制自动采集（🔥 新增）
+- `dna_stats` - 查看统计
+- `dna_reflect` - 反思归纳
+- `dna_decay` - 权重衰减
+- `dna_promote` - 晋升长期
+- `dna_link` - 建立关联
+- `dna_forget` - 删除记忆
+- `dna_working_memory` - 工作记忆
 
-支持后台 daemon 定时执行:
-- 自动 reflect
-- 自动 decay
-- 避免同一批记忆反复归纳
+**详细指南** → [MCP_INTEGRATION_GUIDE.md](./MCP_INTEGRATION_GUIDE.md)  
+**故障排查** → [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
 
-并可通过 **macOS launchd** 开机自启。
+---
 
-### 6. 记忆质量评估系统
-
-自动评估记忆质量,识别高价值记忆和低质量记忆:
-- **多维度评分**:访问频率、新鲜度、具体性、验证状态、关联度、重要性
-- **质量等级**:excellent / good / fair / poor
-- **自动清理**:清理低质量记忆,释放存储空间
-- **健康度报告**:生成记忆系统健康度报告
-
-```bash
-# 评估所有记忆
-python3 scripts/memory_quality.py evaluate --limit 20
-
-# 生成健康度报告
-python3 scripts/memory_quality.py report
-
-# 清理低质量记忆(预览)
-python3 scripts/memory_quality.py cleanup --threshold 0.2 --dry-run
-
-# 实际清理
-python3 scripts/memory_quality.py cleanup --threshold 0.2
-```
-
-### 7. 记忆关联图谱
-
-自动发现记忆之间的关联关系:
-- **关联类型**:相关、因果、矛盾、扩展、替代
-- **自动发现**:基于文本相似度和语义分析
-- **因果识别**:错误 → 解决方案
-- **矛盾检测**:冲突的偏好自动标记
-- **图谱可视化**:查看记忆关联网络
+### 方式二：独立使用
 
 ```bash
-# 为单个记忆发现关联
-python3 scripts/memory_graph.py discover --id 123
+# 1. 克隆项目
+git clone https://github.com/AIPMAndy/dna-memory.git
+cd dna-memory
 
-# 批量发现关联
-python3 scripts/memory_graph.py batch --limit 100
+# 2. 记录一条偏好
+python3 scripts/evolve.py remember "用户喜欢简洁直接的回复" -t preference -i 0.9
 
-# 查看记忆关联图谱
-python3 scripts/memory_graph.py graph --id 123 --depth 2
-```
+# 3. 搜索记忆
+python3 scripts/evolve.py recall "简洁 回复"
 
-### 8. 🔥 记忆递归进化系统（v3.0 核心）
+# 4. 查看统计
+python3 scripts/evolve.py stats
 
-**核心理念**:让记忆系统像生物一样自我进化、强化、淘汰。
-
-#### 8.1 自我强化学习循环
-
-验证记忆是否真的有用,自动强化/衰减:
-
-```bash
-# 强化记忆(任务成功时)
-python3 scripts/memory_reinforcement.py reinforce --id 123 --reason "任务成功"
-
-# 衰减记忆(任务失败时)
-python3 scripts/memory_reinforcement.py decay --id 123 --reason "任务失败"
-
-# 完整强化学习循环
-python3 scripts/memory_reinforcement.py loop --query "飞书 API" --task-id "task_001" --success
-
-# 分析强化历史
-python3 scripts/memory_reinforcement.py analyze --days 7
-```
-
-#### 8.2 记忆蒸馏
-
-将多条相似记忆合并为一条高质量记忆:
-
-```bash
-# 分析蒸馏潜力
-python3 scripts/memory_distillation.py analyze --threshold 0.75
-
-# 预览蒸馏
-python3 scripts/memory_distillation.py distill --dry-run
-
-# 执行蒸馏
-python3 scripts/memory_distillation.py distill
-```
-
-#### 8.3 元记忆(Meta-Memory)
-
-追踪记忆系统本身的演化:
-
-```bash
-# 健康检查
-python3 scripts/meta_memory.py check
-
-# 自我修复
-python3 scripts/meta_memory.py repair
-
-# 演化报告
-python3 scripts/meta_memory.py report
-
-# 添加里程碑
-python3 scripts/meta_memory.py milestone --event "首次蒸馏" --details "压缩了 15 条记忆"
-```
-
-#### 8.4 对抗性记忆验证
-
-主动寻找矛盾的记忆并解决:
-
-```bash
-# 查找矛盾
-python3 scripts/adversarial_validation.py find
-
-# 预览解决方案
-python3 scripts/adversarial_validation.py resolve
-
-# 自动解决矛盾
-python3 scripts/adversarial_validation.py resolve --auto
-
-# 分析矛盾情况
-python3 scripts/adversarial_validation.py analyze
-```
-
-#### 8.5 记忆压缩
-
-压缩低频访问的长期记忆,释放存储空间:
-
-```bash
-# 分析压缩潜力
-python3 scripts/memory_compression.py analyze
-
-# 预览压缩
-python3 scripts/memory_compression.py compress --dry-run
-
-# 执行压缩
-python3 scripts/memory_compression.py compress
-
-# 解压记忆
-python3 scripts/memory_compression.py decompress --id 123
-```
-
-#### 8.6 🔥 Evolver 整合（v3.0 核心）
-
-基于 Gene Expression Programming 的记忆演化机制：
-
-```bash
-# 查看 Evolver 状态
-python3 scripts/gep_assets.py status
-
-# 触发记忆演化
-python3 scripts/gep_assets.py evolve
-
-# 查看演化历史
-python3 scripts/gep_assets.py history
-
-# 分析记忆基因表达
-python3 scripts/gep_assets.py analyze
+# 5. 启动 Web UI
+cd web-ui && npm install && npm run dev
 ```
 
 ---
 
-## 📦 当前真实架构
+### 方式三：自动采集测试
+
+```bash
+# 运行测试脚本（会自动初始化数据库）
+python3 scripts/auto_memory_collector.py
+
+# 你会看到自动测试输出：
+# Input: 我喜欢用 TypeScript 而不是 JavaScript
+# Result: ✅ Collected (ID=10, score=0.92)
+# 
+# Input: 遇到数据库锁定错误，修改为单一事务解决了
+# Result: ✅ Collected (ID=12, score=0.90, type=error)
+# 
+# Input: 好的
+# Result: ⏭️ Skipped (噪音过滤)
+
+# 测试完成后，查看采集的记忆：
+python3 scripts/evolve.py recall "TypeScript"
+```
+
+---
+
+## 🆚 为什么选择 DNA Memory？
+
+| 能力 | Mem0 | Zep | LangChain | **DNA Memory** |
+|------|:----:|:---:|:---------:|:--------------:|
+| **🔥 自动采集** | ❌ | ❌ | ❌ | ✅ **零配置** |
+| **🔥 Web 界面** | ⚠️ 付费 | ⚠️ 付费 | ❌ | ✅ **免费开源** |
+| **⚡ 性能** | 50ms | 20ms | 10ms | ✅ **0.5ms** |
+| 三层架构 | ❌ | ⚠️ | ❌ | ✅ |
+| 主动遗忘 | ❌ | ❌ | ❌ | ✅ |
+| 自动反思 | ❌ | ❌ | ❌ | ✅ |
+| MCP 集成 | ❌ | ❌ | ❌ | ✅ |
+| 本地优先 | ❌ | ❌ | ❌ | ✅ |
+| 零依赖核心 | ❌ | ❌ | ❌ | ✅ |
+
+**性能对比基于真实测试数据**（详见 [performance_report.md](./docs/performance_report.md)）
+
+---
+
+## 📦 架构设计
 
 ```text
 dna-memory/
 ├── scripts/
-│   ├── evolve.py              # 核心 CLI:remember / recall / stats / reflect / dedupe ...
-│   ├── dna_memory_daemon.py   # 后台守护:自动 reflect / decay
-│   ├── semantic_search.py     # 语义搜索实验模块(可扩展)
-│   ├── analyze.py
-│   ├── api.py
-│   ├── autocollect.py
-│   ├── backup.py
-│   ├── cli.py
-│   ├── detailed_stats.py
-│   ├── knowme_link.py
-│   ├── reminder.py
-│   ├── trigger.py
-│   └── visualize.py
+│   ├── evolve.py                  # 核心 CLI
+│   ├── auto_memory_collector.py   # 🔥 自动采集器
+│   └── dna_memory_daemon.py       # 后台守护
+├── mcp-server/
+│   ├── server.py                  # MCP 服务器
+│   ├── hooks.py                   # 🔥 消息监听钩子
+│   └── handlers.py                # 工具处理器
+├── web-ui/                        # 🔥 Next.js Web UI
+│   ├── app/
+│   │   ├── page.tsx               # 首页
+│   │   ├── timeline/page.tsx      # 时间线
+│   │   ├── stats/page.tsx         # 统计
+│   │   └── api/                   # API 端点
+│   └── package.json
 ├── memory/
-│   ├── memory.db              # SQLite 主库(记忆 + 操作日志)
-│   └── working.json           # 工作记忆
-├── assets/
-│   └── config.json                    # daemon/衰减等配置
-├── README.md
-├── README_EN.md
-└── SKILL.md
+│   └── memory.db                  # SQLite 数据库
+└── docs/
+    ├── auto_collector_architecture.md  # 架构设计
+    └── performance_report.md           # 性能报告
 ```
-
-> 注意:`memory/*.db` 不应提交到 Git,仓库已加入 ignore 保护真实记忆数据。
 
 ---
 
 ## 🧪 核心命令
 
-### Remember
-
+### 基础操作
 ```bash
-python3 scripts/evolve.py remember "Andy 喜欢简洁直接的回复" -t preference -i 0.95
-```
+# 记录记忆
+python3 scripts/evolve.py remember "内容" -t preference -i 0.9
 
-### Recall
+# 搜索记忆
+python3 scripts/evolve.py recall "关键词"
 
-```bash
-# 基础 Recall
-python3 scripts/evolve.py recall "简洁 回复"
-python3 scripts/evolve.py recall "type:skill 飞书"
-
-# 增强版 Recall(智能搜索 + 上下文感知)
-python3 scripts/enhanced_recall.py "关键词" --context "上下文"
-python3 scripts/enhanced_recall.py --type error --limit 5
-python3 scripts/enhanced_recall.py --recent 7
-```
-
-### Stats
-
-```bash
+# 查看统计
 python3 scripts/evolve.py stats
-```
 
-### Reflect
-
-```bash
+# 反思归纳
 python3 scripts/evolve.py reflect
-```
 
-### Promote
-
-```bash
-python3 scripts/evolve.py promote --id 12
-```
-
-### Dedupe
-
-```bash
-python3 scripts/evolve.py dedupe
-```
-
-### Daemon
-
-```bash
-# 启动
+# 启动后台维护
 python3 scripts/dna_memory_daemon.py start
-
-# 查看状态
-python3 scripts/dna_memory_daemon.py status
-
-# 停止
-python3 scripts/dna_memory_daemon.py stop
 ```
 
-### SessionMemory(会话级记忆)
-
+### 自动采集
 ```bash
-# 查看会话摘要
-python3 scripts/session_memory.py summary
+# 测试自动采集器
+python3 scripts/auto_memory_collector.py
 
-# 压缩会话记忆(token 使用 > 70% 时)
-python3 scripts/session_memory.py compress
-
-# 提取有价值的记忆(会话结束时)
-python3 scripts/session_memory.py extract
-
-# 清理会话记忆
-python3 scripts/session_memory.py clear
-```
-
-### MemoryExtractor(自动记忆提取)
-
-```bash
-# 从对话日志中自动提取记忆
-python3 scripts/memory_extractor.py --file conversation.json
-
-# 只提取不写入(预览)
-python3 scripts/memory_extractor.py --file conversation.json --dry-run
-
-# 调整置信度阈值
-python3 scripts/memory_extractor.py --file conversation.json --threshold 0.8
+# 在 Claude Code 中控制
+dna_auto_collect --action enable   # 启用
+dna_auto_collect --action disable  # 禁用
+dna_auto_collect --action status   # 状态
 ```
 
 ---
 
-## ⚙️ 适用场景
+## 🛠️ 技术栈
 
-### 1. 个人 AI 助理
-- 记住用户偏好
-- 逐步形成长期协作风格
-- 从错误中学习,不重复犯错
+**核心（零依赖）：**
+- Python 3.8+
+- SQLite（Python 标准库）
 
-### 2. Agent 工作流编排
-- 任务执行后沉淀技能
-- 失败案例进入 error memory
-- 长任务形成模式归纳
+**可选功能：**
+- MCP SDK → `pip install mcp`
+- Web UI → Next.js 14 + Tailwind CSS
+- 测试 → `pip install pytest`
 
-### 3. AI 知识型产品
-- 积累用户画像
-- 记录行为模式
-- 构建长期 personalization
-
-### 4. 自我进化系统
-- 配合 self-improving-agent / OpenClaw / 自定义 Agent 使用
-- 把"经验"变成机器能持续复用的资产
+**特点：**
+- ✅ 本地优先存储
+- ✅ 零外部依赖核心
+- ✅ 适合个人/本地 Agent
 
 ---
 
-## 🧭 推荐工作流
+## 📊 性能数据
 
-```text
-收到任务
-  ↓
-Recall 相关记忆
-  ↓
-执行任务
-  ↓
-Remember 新偏好 / 新技能 / 错误
-  ↓
-🔥 强化学习循环（验证记忆有效性）
-  ↓
-Reflect 归纳模式
-  ↓
-🔥 记忆蒸馏（合并相似记忆）
-  ↓
-Promote 到长期记忆
-  ↓
-🔥 对抗性验证（检查矛盾）
-```
+基于真实测试（162 条记忆，详见 [performance_report.md](./docs/performance_report.md)）：
 
-这套流程适合:
-- 被用户纠正时
-- 学到新偏好时
-- 遇到 API 失败时
-- 完成长任务时
-- 发现重复模式时
+| 操作 | 性能 | 数据规模 |
+|------|------|----------|
+| 写入记忆 | 0.47ms/条 | 100 条 |
+| 搜索记忆 | 1.48ms | 50 条结果 |
+| 自动采集 | 0.54ms/条 | 60 条消息 |
+| 统计计算 | 0.23ms | 162 条 |
+| 数据库大小 | 136KB | 162 条 |
+
+**预估 10000 条记忆：**
+- 写入时间：~5s
+- 搜索时间：< 10ms
+- 数据库大小：~8.6MB
 
 ---
 
 ## 🗺️ Roadmap
 
+### ✅ Phase 1 (已完成)
 - [x] SQLite 单库重构
-- [x] remember / recall / reflect / promote / dedupe CLI
-- [x] daemon 自动 reflect / decay
-- [x] recall 支持 FTS5 全文搜索
-- [x] launchd 开机自启方案
-- [x] 🆕 智能相关性排序(混合检索 + 多维度评分)
-- [x] 🆕 中文分词优化(2-3 字切分)
-- [x] 🆕 记忆质量评估系统(自动评分 + 清理)
-- [x] 🆕 记忆关联图谱(因果/矛盾检测)
-- [ ] 更强的中文分词(接入 jieba)
-- [ ] 真正的 embedding 语义检索接入
-- [ ] 记忆关联图谱可视化增强(Web UI)
-- [ ] 更完整的导入 / 导出 / 迁移工具
-- [ ] 多 Agent 共享记忆空间支持
+- [x] 三层记忆架构
+- [x] FTS5 全文搜索
+- [x] MCP 服务器集成
+- [x] 🔥 自动采集器
+- [x] 🔥 Web UI 可视化
+- [x] 🔥 性能优化
+
+### 🔜 Phase 2 (计划中)
+- [ ] D3.js 关系图谱可视化
+- [ ] 一键分享功能
+- [ ] Chrome/VSCode 插件
+- [ ] 语义搜索（embedding）
+- [ ] 多 Agent 共享记忆
+
+### 💡 Phase 3 (未来)
+- [ ] 开放 API
+- [ ] 插件市场
+- [ ] 云端同步（可选）
+- [ ] 移动端应用
 
 ---
 
 ## 🤝 贡献
 
-欢迎提交 Issue / PR,一起把"AI 记忆"这件事做对。
+欢迎提交 Issue / PR，一起让 AI 记忆更智能！
 
-建议优先贡献方向:
-- recall 相关性排序
-- 中文搜索体验
-- pattern 抽取质量
-- 记忆可视化
-- 多模型 embedding 接入
-- 🔥 记忆演化策略优化
+**优先贡献方向：**
+- 🔥 自动采集规则优化
+- 📊 Web UI 功能增强
+- 🌐 浏览器插件开发
+- 📝 文档/教程完善
+- 🎨 UI/UX 设计改进
 
 ---
 
 ## 👨‍💻 作者
 
-**Andy / AI酋长Andy**
-前腾讯 / 百度 AI 产品专家 → 大模型独角兽 VP → 创业 CEO
+**Andy / AI酋长Andy**  
+前腾讯/百度 AI 产品专家 → 大模型独角兽 VP → 创业 CEO
 
-关注方向:
+关注方向：
 - AI Agent
-- AI 商业化
 - 记忆系统
 - 个体增强
 
@@ -601,8 +456,10 @@ GitHub: https://github.com/AIPMAndy
 
 <div align="center">
 
-**如果这个项目对你有帮助,欢迎给个 ⭐ Star。**
+**如果这个项目对你有帮助，欢迎给个 ⭐ Star！**
 
 **v3.0 让 AI 记忆真正"活"起来。**
+
+[⭐ Star on GitHub](https://github.com/AIPMAndy/dna-memory) | [📖 文档](./docs/) | [💬 讨论](https://github.com/AIPMAndy/dna-memory/discussions)
 
 </div>
