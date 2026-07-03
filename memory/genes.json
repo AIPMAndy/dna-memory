@@ -1,0 +1,37 @@
+[
+  {
+    "id": "gene_1776441396340",
+    "name": "飞书 API 限流处理",
+    "description": "检测并处理飞书 API 限流",
+    "triggers": [
+      {
+        "type": "error",
+        "keywords": [
+          "飞书",
+          "限流",
+          "429"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "type": "remember",
+        "content": "分段请求，每批 50 条"
+      },
+      {
+        "type": "remember",
+        "content": "添加 1 秒延迟"
+      }
+    ],
+    "tags": [
+      "feishu",
+      "api",
+      "rate-limit"
+    ],
+    "created": 1776441396.340255,
+    "updated": 1776441396.34049,
+    "usage_count": 1,
+    "success_count": 1,
+    "failure_count": 0
+  }
+]
