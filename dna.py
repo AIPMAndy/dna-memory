@@ -55,6 +55,25 @@ COMMANDS = {
             'dna sync',
         ]
     },
+    'memory': {
+        'script': 'memory_cli.py',
+        'description': '统一长期记忆索引（状态、重建、维护）',
+        'examples': [
+            'dna memory status --json',
+            'dna memory reindex --json',
+            'dna memory maintain daily --json',
+            'dna memory maintain weekly --json',
+            'dna memory maintain monthly --json',
+        ]
+    },
+    'skills': {
+        'script': 'skills_cli.py',
+        'description': '跨客户端 Skill 管理（清单、诊断、同步）',
+        'examples': [
+            'dna skills inventory --json',
+            'dna skills sync --json',
+        ]
+    },
 }
 
 
@@ -106,8 +125,9 @@ def main():
 
     try:
         result = subprocess.run(
-            ['python3', str(script_path)] + args,
-            check=False
+            ['python3', '-m', 'scripts.' + script_path.stem] + args,
+            check=False,
+            cwd=str(Path(__file__).parent),
         )
         sys.exit(result.returncode)
     except KeyboardInterrupt:

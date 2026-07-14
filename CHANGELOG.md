@@ -5,17 +5,22 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- 新增 `QUICKSTART.md` - 5 分钟快速上手指南，聚焦核心 3 个功能
-- README.md 增加快速上手链接和核心功能说明
+- Markdown/Obsidian 长期真源与可重建 SQLite 索引
+- Codex、Claude Code、Claude Desktop 和 Hermes 的统一 stdio MCP
+- 有界原生会话指针、候选提案、召回反馈与价值指标
+- 显式 `supersedes` 关系与原子回滚
+- 跨客户端共享 Skill 清单、诊断和安全同步
+- 通用 `dna-memory-loop` Skill
+- CI 测试、编译和公开敏感信息扫描
 
 ### Changed
-- 优化 README.md 结构，区分核心特性和高级特性
-- 明确核心功能优先级：remember / recall / daemon
+- README、快速上手和客户端文档改为当前跨端用法
+- 本机 profile、运行配置和记忆数据全部迁出 Git 仓库
+- macOS 自动化标识和示例路径改为通用命名
+- 旧 Claude 同步脚本不再包含固定用户或项目路径
 
-### Improved
-- 降低学习成本：从 30 个脚本中明确标注核心 3 个功能
-- 提升易用性：提供快捷命令 alias 示例
-- 优化文档组织：核心功能 → 高级功能 → 实验性功能
+### Removed
+- 私人 Skill、个人部署计划、真实 vault 名称和运行时记忆样例
 
 ## [2026-04-22] - 可用性优化
 
@@ -31,5 +36,4 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-**维护者**: Andy / AI酋长Andy  
-**GitHub**: https://github.com/AIPMAndy/dna-memory
+**Project**: https://github.com/AIPMAndy/dna-memory

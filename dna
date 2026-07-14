@@ -8,9 +8,10 @@ import sys
 import subprocess
 from pathlib import Path
 
-DNA_MEMORY_DIR = Path.home() / ".cc-switch/skills/dna-memory"
+DNA_MEMORY_DIR = Path(__file__).resolve().parent
 EVOLVE_SCRIPT = DNA_MEMORY_DIR / "scripts/evolve.py"
 SYNC_SCRIPT = DNA_MEMORY_DIR / "scripts/sync_to_claude.py"
+MAIN_CLI = DNA_MEMORY_DIR / "dna.py"
 
 def main():
     if len(sys.argv) < 2:
@@ -23,6 +24,10 @@ def main():
         sys.exit(1)
 
     command = sys.argv[1]
+
+    if command in {"memory", "skills", "manage", "monitor", "ask"}:
+        result = subprocess.run(["python3", str(MAIN_CLI)] + sys.argv[1:])
+        sys.exit(result.returncode)
 
     if command == "remember":
         # 记录记忆

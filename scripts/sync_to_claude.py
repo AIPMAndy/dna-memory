@@ -8,18 +8,28 @@
 
 import sqlite3
 import json
+import os
 from pathlib import Path
 from datetime import datetime
 
-# DNA Memory 数据库路径
-DNA_MEMORY_DB = Path.home() / ".cc-switch/skills/dna-memory/memory/memory.db"
+# Legacy database path. Override it instead of editing this file.
+DNA_MEMORY_DB = Path(os.getenv(
+    "DNA_MEMORY_LEGACY_DB",
+    Path(__file__).resolve().parents[1] / "memory" / "memory.db",
+)).expanduser()
 
-# Claude Code Memory 路径
-CLAUDE_MEMORY_DIR = Path.home() / ".claude/projects/-Users-andy-Documents-AICode/memory"
+# Claude Code memory target. Project-specific locations vary by installation.
+CLAUDE_MEMORY_DIR = Path(os.getenv(
+    "CLAUDE_MEMORY_DIR",
+    Path.home() / ".claude" / "memory",
+)).expanduser()
 CLAUDE_MEMORY_DIR.mkdir(parents=True, exist_ok=True)
 
-# 配置文件
-CONFIG_FILE = Path.home() / ".cc-switch/skills/dna-memory/assets/config.json"
+# Optional legacy configuration. Runtime configuration stays outside the repo.
+CONFIG_FILE = Path(os.getenv(
+    "DNA_MEMORY_LEGACY_CONFIG",
+    Path.home() / ".config" / "dna-memory" / "legacy-config.json",
+)).expanduser()
 
 def load_config():
     """加载配置"""

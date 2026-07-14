@@ -15,8 +15,16 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# 不要提交实际的记忆数据
-# memory/*.json  # 如果放在项目内的话
+# Local profiles and runtime configuration
+assets/config.json
+docs/profiles/*.local.json
 
-# 不要提交实际数据库
+# Never commit user memory data
 memory/*.db
+memory/*.db-*
+memory/*.json
+memory/*.jsonl
+!memory/README.md
+
+# Local safety output
+.public-safety-report.json

@@ -1,0 +1,7 @@
+{
+  "skills": {
+    "dna-memory-loop": {
+      "targets": ["codex", "claude", "hermes"]
+    }
+  }
+}

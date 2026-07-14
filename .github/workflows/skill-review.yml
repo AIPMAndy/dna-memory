@@ -11,12 +11,19 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
+    env:
+      TESSL_API_TOKEN: ${{ secrets.TESSL_API_TOKEN }}
     permissions:
       pull-requests: write
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Skip when Tessl is not configured
+        if: env.TESSL_API_TOKEN == ''
+        run: echo "Tessl Skill Review skipped because TESSL_API_TOKEN is not configured."
       - uses: tesslio/skill-review@main
+        if: env.TESSL_API_TOKEN != ''
+        with:
+          tessl-token: ${{ env.TESSL_API_TOKEN }}
       # Optional quality gate (off by default):
-      # with:
       #   fail-threshold: 70

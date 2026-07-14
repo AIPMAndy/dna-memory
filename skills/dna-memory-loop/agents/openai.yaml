@@ -1,0 +1,4 @@
+interface:
+  display_name: "DNA Memory Loop"
+  short_description: "Recall before work and write back only verified conclusions."
+  default_prompt: "Use $dna-memory-loop to recall relevant context and write back only verified durable conclusions."
