@@ -40,7 +40,7 @@ python3 scripts/evolve.py --help
 
 ## 联系作者
 
-- 微信：AIPMAndy
+- 支持与讨论：请使用 GitHub Issues 或 Discussions
 - GitHub Issues
 
 感谢你的贡献！🙏

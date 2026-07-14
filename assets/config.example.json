@@ -1,0 +1,20 @@
+{
+  "knowledge_root": "~/Documents/DNA-Memory-Vault",
+  "database_path": "~/.local/share/dna-memory/memory.db",
+  "skill_root": "~/.agents/skills",
+  "skill_registry": "~/.config/dna-memory/skills.json",
+  "platform_skill_roots": {
+    "codex": "~/.codex/skills",
+    "claude": "~/.claude/skills",
+    "hermes": "~/.hermes/skills"
+  },
+  "warning_bytes": 104857600,
+  "hard_bytes": 262144000,
+  "max_records": 10000,
+  "max_candidate_events": 10000,
+  "backup_dir": "~/.local/share/dna-memory/backups/managed",
+  "backup_keep": 8,
+  "claudian_session_dirs": [],
+  "claude_desktop_session_dirs": [],
+  "hermes_state_db": null
+}

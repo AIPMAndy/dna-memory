@@ -1,348 +1,234 @@
 <div align="center">
 
-# 🧬 DNA Memory
+# DNA Memory
 
-**让 AI Agent 像人脑一样学习、强化、遗忘与进化**
+**面向 Codex、Claude Code、Claude Desktop、Hermes 与 Obsidian 的本地优先统一记忆层**
 
 [![Stars](https://img.shields.io/github/stars/AIPMAndy/dna-memory?style=social)](https://github.com/AIPMAndy/dna-memory/stargazers)
 [![License](https://img.shields.io/github/license/AIPMAndy/dna-memory)](https://github.com/AIPMAndy/dna-memory)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-3.2-green)](https://github.com/AIPMAndy/dna-memory/releases)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue)](https://www.python.org/)
 
-[English](./README_EN.md) | **简体中文** | [快速上手](./QUICKSTART.md)
+[English](./README_EN.md) | 简体中文 | [快速上手](./QUICKSTART.md)
 
 </div>
 
----
+DNA Memory 把一个 Markdown/Obsidian 目录作为长期记忆真源，把 SQLite
+作为可删除、可重建的索引。多个 AI 客户端通过同一个 MCP 服务召回、写入和反馈，
+不再各自维护互相冲突的长期记忆副本。
 
-> **大多数 AI 记忆系统只是在"存储"。**  
-> **DNA Memory 解决的是: AI 如何像人一样学习、强化与进化。**
+它不会把“保存所有聊天记录”等同于“形成记忆”。完整会话仍由原客户端保管；
+DNA Memory 只保存有界来源指针、经过审查的提案，以及验证后的关键结论。
 
-## 💡 为什么需要 DNA Memory？
+## 核心边界
 
-你是否遇到过这些问题：
+- Markdown 是长期真源，SQLite 是索引和遥测层。
+- `memory_remember` 写入的是短小、可复用结论，不是 transcript。
+- 自动导入默认只保存 session ID、路径、哈希、偏移和计数。
+- 自动提炼每个会话最多产生 3 条候选，每条最多 800 字符。
+- 凭证、私钥、常见 token 和疑似敏感内容会被拒绝。
+- 普通 Claude Desktop 云端聊天没有稳定本地正文来源时，只能显式 MCP 写回。
+- 任何客户端的记忆故障都不应阻塞主任务。
 
-- ❌ **AI 总是忘记你的偏好**：每次都要重复"我喜欢简洁的回复"
-- ❌ **犯过的错误反复出现**：上次说过不要用某个工具，这次又推荐
-- ❌ **记忆混乱无序**：存了一堆碎片，检索时找不到关键信息
-- ❌ **性能问题**：记忆越多越卡，最后弃用
-
-**DNA Memory 三大核心价值：**
-
-1. **🎯 真正有效的记忆** - 高优先级记忆自动同步到 Claude Code，每次对话都会被加载
-2. **⚡️ 轻量高性能** - 500 条记忆 < 0.1MB，查询 < 0.5ms，不影响 AI 使用体验
-3. **🧠 自动升华** - 不调用 LLM，纯算法实现记忆强化、衰减、晋升，零成本
-
----
-
-## 🚀 5 分钟快速上手
-
-```bash
-# 1. 克隆到技能目录
-git clone https://github.com/AIPMAndy/dna-memory.git ~/.cc-switch/skills/dna-memory
-# 或 ~/.claude/skills/dna-memory
-
-cd ~/.cc-switch/skills/dna-memory
-
-# 2. 记录一条高优先级偏好
-python3 scripts/store_memory.py \
-  --content "浏览器操作永远优先使用 Kimi webbridge MCP 工具" \
-  --type preference \
-  --weight 0.95
-
-# 3. 同步到 Claude Code Memory（每次对话都会加载）
-python3 scripts/sync_to_claude.py
-
-# 4. 查看统计
-python3 dna.py manage stats
-
-# 5. 搜索记忆
-python3 dna.py manage search "浏览器"
-```
-
-**完成！** 你的 AI 现在会记住这条偏好。
-
----
-
-## ✨ 核心能力
-
-### 1. 📊 记忆管理界面
-
-```bash
-# 查看所有记忆
-python3 dna.py manage list --limit 10
-
-# 搜索记忆（FTS5 全文搜索）
-python3 dna.py manage search "webbridge"
-
-# 查看详情
-python3 dna.py manage view 9
-
-# 更新记忆
-python3 dna.py manage update 9 --weight 1.0 --type preference
-
-# 删除记忆
-python3 dna.py manage delete 9 --confirm
-
-# 统计信息
-python3 dna.py manage stats
-```
-
-**输出示例：**
-```
-📊 DNA Memory 统计信息
-============================================================
-总记忆数: 10
-高优先级记忆 (≥0.8): 1
-数据库大小: 0.11 MB
-
-按类型分布:
-  preference  :   2 条 (平均权重: 0.74)
-  pattern     :   4 条 (平均权重: 0.52)
-  fact        :   2 条 (平均权重: 0.56)
-  error       :   1 条 (平均权重: 0.52)
-```
-
-### 2. 🧠 轻量级记忆升华
-
-**零成本、纯算法、可配置频率**
-
-```bash
-# 查看升华状态
-python3 dna.py reflect status
-
-# 执行升华
-python3 dna.py reflect run
-
-# 强制执行（忽略时间间隔）
-python3 dna.py reflect run --force
-
-# 查看配置
-python3 dna.py reflect config
-```
-
-**升华机制：**
-- ✅ **频繁访问 → 权重提升**：每次调用 +0.05
-- ✅ **长期不用 → 权重衰减**：每天 -0.01
-- ✅ **晋升长期记忆**：权重 ≥ 0.8 且访问 ≥ 3 次
-- ✅ **发现相似记忆**：提示合并建议（不自动执行）
-
-**完全不调用 LLM，零 API 成本！**
-
-### 3. ⚡️ 性能监控
-
-```bash
-# 检查性能
-python3 dna.py monitor check
-
-# 自动清理（性能危险时）
-python3 dna.py monitor auto-clean
-```
-
-**性能保证：**
-```
-🔍 DNA Memory 性能报告
-==================================================
-数据库大小: 0.11 MB / 5 MB
-记忆数量: 10 / 500
-查询速度: 0.34 ms
-健康度: 98%
-状态: HEALTHY
-
-✅ 性能良好
-```
-
-**性能限制：**
-- 最大记忆数：500 条（可配置，默认降低以保持轻量）
-- 数据库上限：5 MB
-- 查询时间：< 50ms
-- 自动清理：权重 < 0.25 且超过 60 天未访问
-
-### 4. 🔄 自动同步到 Claude Code Memory
-
-高优先级记忆（weight ≥ 0.8）会自动同步到 Claude Code Memory，**每次对话都会被加载**！
-
-```bash
-# 手动同步
-python3 dna.py sync
-
-# 或通过 launchd 自动同步（每小时）
-launchctl load ~/Library/LaunchAgents/com.andy.dna-memory-sync.plist
-```
-
-### 5. 🤖 智能问答（Memory-Enhanced Q&A）
-
-AI 回答时自动注入相关记忆，让 AI 更懂你：
-
-```bash
-# 使用默认 Agent
-python3 dna.py ask "浏览器操作应该用什么工具？"
-
-# 指定 Agent
-python3 dna.py ask "如何优化性能？" --agent hermes
-
-# 调整检索数量
-python3 dna.py ask "调试技巧" --recall-limit 10
-```
-
----
-
-## 🎯 三层记忆架构
+## 架构
 
 ```text
-工作记忆 (Working Memory)
-  ↓ 筛选
-短期记忆 (Short-term Memory)
-  ↓ 巩固 / 晋升
-长期记忆 (Long-term Memory)
+Codex / Claude / Hermes
+          |
+          | stdio MCP
+          v
+  memory_recall / remember / feedback
+          |
+          +--> Markdown vault       <- durable source of truth
+          |
+          +--> SQLite index         <- rebuildable search + telemetry
+          |
+          +--> bounded candidates   <- pointers and reviewable proposals
+
+Native client histories remain in their original stores.
 ```
 
-| 层级 | 作用 | 典型内容 | 权重范围 |
-|------|------|----------|----------|
-| 工作记忆 | 当前会话临时上下文 | 本轮任务、刚发生的事 | 0.3-0.5 |
-| 短期记忆 | 近期重要信息 | 用户偏好、近期经验、错误教训 | 0.5-0.8 |
-| 长期记忆 | 稳定知识与模式 | 规则、技能、长期偏好、归纳模式 | 0.8-1.0 |
+## 安装
 
----
+```bash
+git clone https://github.com/AIPMAndy/dna-memory.git \
+  "$HOME/.local/share/dna-memory/app"
+cd "$HOME/.local/share/dna-memory/app"
 
-## 📦 记忆类型
+python3 -m venv "$HOME/.local/share/dna-memory/mcp-venv"
+"$HOME/.local/share/dna-memory/mcp-venv/bin/pip" install \
+  -r requirements-mcp.txt
 
-| 类型 | 说明 | 示例 | 推荐权重 |
-|------|------|------|----------|
-| `preference` | 用户偏好、习惯 | "回复要简洁直接" | 0.8-1.0 |
-| `pattern` | 工作模式、流程 | "马斯克五步法" | 0.6-0.9 |
-| `skill` | 技能、工具使用 | "如何使用 lark-cli" | 0.5-0.8 |
-| `error` | 错误教训 | "不要用 selenium，用 webbridge" | 0.7-0.9 |
-| `fact` | 事实性信息 | "用户是 AI 产品专家" | 0.5-0.7 |
-| `insight` | 洞察、总结 | "内容质量不是问题，缺付费入口" | 0.6-0.9 |
+mkdir -p "$HOME/.config/dna-memory" "$HOME/Documents/DNA-Memory-Vault/Memory"
+cp docs/profiles/profile.example.json \
+  "$HOME/.config/dna-memory/profile.json"
+```
 
----
-
-## ⚙️ 配置文件
-
-编辑 `assets/config.json`：
+按需编辑仓库外的 profile：
 
 ```json
 {
-  "_comment_performance": "性能配置",
-  "max_total_memories": 500,           // 最大记忆数（降低保持轻量）
-  "cleanup_threshold": 0.25,           // 清理阈值
-  "archive_after_days": 90,            // 归档天数
-
-  "_comment_sync": "同步配置",
-  "sync_weight_threshold": 0.8,        // 同步权重阈值
-  "sync_max_memories": 20,             // 最多同步数
-
-  "_comment_reflection": "升华配置（零成本）",
-  "reflection": {
-    "enabled": true,                   // 启用升华
-    "interval_hours": 24,              // 升华频率（小时）
-    "min_memories_for_reflection": 5,  // 最少记忆数
-    "weight_boost_per_recall": 0.05,   // 每次调用增加权重
-    "weight_decay_per_day": 0.01       // 每天衰减权重
+  "knowledge_root": "~/Documents/DNA-Memory-Vault",
+  "database_path": "~/.local/share/dna-memory/memory.db",
+  "managed_memory_dir": "Memory",
+  "skill_root": "~/.agents/skills",
+  "skill_registry": "~/.config/dna-memory/skills.json",
+  "platform_skill_roots": {
+    "codex": "~/.codex/skills",
+    "claude": "~/.claude/skills",
+    "hermes": "~/.hermes/skills"
   }
 }
 ```
 
----
-
-## 🛠️ 安装位置灵活
-
-DNA Memory 自动检测安装位置，支持：
-
-- ✅ `~/.cc-switch/skills/dna-memory`
-- ✅ `~/.claude/skills/dna-memory`
-- ✅ `~/.openclaw/skills/dna-memory`
-
-无需修改代码，自动适配！
-
----
-
-## 🌟 项目特色
-
-### 1. 真正轻量
-- **核心只依赖 Python 标准库 + SQLite**
-- **500 条记忆 < 0.1MB**
-- **查询 < 0.5ms**
-- **不影响 AI 使用性能**
-
-### 2. 零 API 成本
-- **记忆升华完全不调用 LLM**
-- **纯算法实现强化、衰减、晋升**
-- **长期运行零额外成本**
-
-### 3. 真正有效
-- **高优先级记忆自动同步到 Claude Code Memory**
-- **每次对话都会被加载**
-- **AI 真的会记住你的偏好**
-
-### 4. 可管理
-- **完整的命令行界面**
-- **查看、搜索、编辑、删除**
-- **统计、监控、升华**
-- **完全掌控你的记忆**
-
----
-
-## 📚 多 Agent 支持
-
-DNA Memory 支持多个 AI Agent：
-
-- ✅ **Claude CLI** (v2.1.181+)
-- ✅ **Hermes** (v0.17.0+)
-- ⚠️ **Codex** (需要重新安装)
-
-自动检测可用 Agent，统一调用接口。
-
----
-
-## 🔧 开发指南
-
 ```bash
-# 克隆仓库
-git clone https://github.com/AIPMAndy/dna-memory.git
-cd dna-memory
-
-# 运行测试
-python3 scripts/memory_manager.py stats
-python3 scripts/lightweight_monitor.py check
-python3 scripts/lightweight_reflection.py status
-
-# 查看帮助
-python3 dna.py help
+export DNA_MEMORY_PROFILE="$HOME/.config/dna-memory/profile.json"
+python3 dna.py memory status --json
+python3 dna.py memory reindex --json
 ```
 
----
+## 接入三个客户端
 
-## 📄 许可证
+以下命令让 Codex、Claude Code 和 Hermes 指向同一个 profile 与 MCP 服务：
 
-MIT License - 详见 [LICENSE](./LICENSE)
+```bash
+ROOT="$HOME/.local/share/dna-memory/app"
+PYTHON="$HOME/.local/share/dna-memory/mcp-venv/bin/python"
+PROFILE="$HOME/.config/dna-memory/profile.json"
 
----
+codex mcp add dna-memory \
+  --env "DNA_MEMORY_PROFILE=$PROFILE" \
+  -- "$PYTHON" "$ROOT/scripts/memory_mcp.py"
 
-## 🤝 贡献
+claude mcp add --scope user dna-memory \
+  -e "DNA_MEMORY_PROFILE=$PROFILE" \
+  -- "$PYTHON" "$ROOT/scripts/memory_mcp.py"
 
-欢迎 PR、Issue、建议！
+hermes mcp add dna-memory \
+  --command "$PYTHON" \
+  --env "DNA_MEMORY_PROFILE=$PROFILE" \
+  --args "$ROOT/scripts/memory_mcp.py"
+```
 
-详见 [CONTRIBUTING.md](./CONTRIBUTING.md)
+验收时不要只看配置文件：
 
----
+```bash
+codex mcp get dna-memory
+claude mcp get dna-memory
+hermes mcp test dna-memory
+```
 
-## 🙏 致谢
+Claude Desktop 使用 `mcpServers` 配置，且 JSON 中必须是绝对路径。安全迁移、
+备份和回滚见 [客户端接入文档](docs/mcp-and-client-adapters.md)。
 
-灵感来源：
-- 人类记忆的工作原理
-- Ebbinghaus 遗忘曲线
-- 强化学习理论
+## MCP 工具
 
----
+| 工具 | 用途 |
+|---|---|
+| `memory_recall` | 用 1 至 4 个独立关键词召回活跃记忆 |
+| `memory_get` | 按稳定 ID 获取单条记忆和替代关系 |
+| `memory_remember` | 写入验证后的长期结论 |
+| `memory_feedback` | 标记召回结果 `useful` 或 `misleading` |
+| `memory_close_session` | 保存有界会话来源指针 |
+| `memory_status` | 查看真源和索引状态 |
+| `memory_reindex` | 从 Markdown 重建 SQLite 索引 |
 
-<div align="center">
+推荐将 [dna-memory-loop](skills/dna-memory-loop/SKILL.md) 分发到各客户端。
+它规定了同一套行为：任务前召回、确实使用后反馈、验证后才写回。
 
-**如果这个项目对你有帮助，请给一个 ⭐️ Star！**
+## 日常操作
 
-[GitHub](https://github.com/AIPMAndy/dna-memory) | [文档](./docs) | [快速上手](./QUICKSTART.md)
+```bash
+# 真源、容量与索引状态
+python3 dna.py memory status --json
 
-Made with ❤️ by [Andy](https://github.com/AIPMAndy)
+# 客户端来源、自动捕获和 MCP 边界
+python3 dna.py memory coverage --json
 
-</div>
+# 召回、命中、反馈、写回和积压指标
+python3 dna.py memory value --json
+
+# 从 Markdown 重建索引
+python3 dna.py memory reindex --json
+
+# 结晶安全提案、清理候选、备份、完整性检查
+python3 dna.py memory maintain daily --json
+python3 dna.py memory maintain weekly --json
+python3 dna.py memory maintain monthly --json
+```
+
+当新证据明确使旧结论失效时，调用 `memory_remember` 并显式传入旧 ID：
+
+```json
+{
+  "type": "project_state",
+  "summary": "客户端接入已经通过真实召回与写回验收。",
+  "supersedes": ["mem_old_unverified"]
+}
+```
+
+旧 Markdown 会保留并改为 `superseded`；默认召回只返回 active 结论。
+系统不会仅按项目或类型猜测冲突。
+
+## 自动导入与提炼
+
+可按需要运行：
+
+```bash
+python3 scripts/import_codex_rollouts.py
+python3 scripts/import_claudian_sessions.py
+python3 scripts/import_claude_desktop_sessions.py
+python3 scripts/import_hermes_sessions.py
+python3 scripts/import_native_history.py
+```
+
+导入器使用检查点和幂等事件 ID。普通事件只保存指针；只有显式
+`DNA_MEMORY_PROPOSAL {JSON}` 或通过有界信号提取的短结论才进入候选队列，
+并且仍需经过 daily 维护的类型、敏感信息、容量和去重检查。
+
+这意味着“扫描到了会话”不等于“已经形成长期认知”。衡量系统价值时应同时看：
+
+1. 自动捕获覆盖率。
+2. 长期记忆写入数量。
+3. 召回命中率与 `useful` 反馈。
+4. 是否减少重复说明和重复错误。
+
+## 跨客户端 Skill 管理
+
+共享 Skill 真源与记忆真源分开管理。注册表只声明 DNA Memory 有权分发的
+Skill，注册表外的客户端专属目录不会被删除或覆盖。
+
+```bash
+cp assets/skills.example.json "$HOME/.config/dna-memory/skills.json"
+python3 dna.py skills inventory --json
+python3 dna.py skills doctor --json
+python3 dna.py skills sync --json
+python3 dna.py skills sync --apply --json
+```
+
+`sync` 默认 dry-run，`--apply` 只创建缺失符号链接。详见
+[Skill 管理](docs/skill-management.md)。
+
+## 隐私与公开安全
+
+仓库不包含真实 profile、数据库、会话、记忆 JSON、个人 Skill 或内部部署记录。
+发布前运行：
+
+```bash
+python3 scripts/check_public_safety.py
+```
+
+本地 profile、备份、SQLite 和 Markdown vault 不应位于 Git 仓库内。
+如果曾误提交凭证，仅删除文件不够，还必须撤销凭证并清理 Git 历史。
+
+## 开发验证
+
+```bash
+python3 -m pytest -q
+python3 -m compileall -q dna.py dna scripts tests
+python3 scripts/check_public_safety.py
+git diff --check
+```
+
+## License
+
+[MIT](LICENSE)

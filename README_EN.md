@@ -1,321 +1,183 @@
 <div align="center">
 
-# 🧬 DNA Memory
+# DNA Memory
 
-**Make AI Agents learn, reinforce, forget, and generalize like a human brain**
+**A local-first shared memory layer for Codex, Claude, Hermes, and Obsidian**
 
 [![Stars](https://img.shields.io/github/stars/AIPMAndy/dna-memory?style=social)](https://github.com/AIPMAndy/dna-memory/stargazers)
 [![License](https://img.shields.io/github/license/AIPMAndy/dna-memory)](https://github.com/AIPMAndy/dna-memory)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
-[![OpenClaw](https://img.shields.io/badge/Built%20for-OpenClaw-purple)](https://github.com/openclaw/openclaw)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue)](https://www.python.org/)
 
-**English** | [简体中文](./README.md)
+English | [简体中文](./README.md) | [Quick start](./QUICKSTART.md)
 
 </div>
 
----
+DNA Memory uses a Markdown/Obsidian directory as the durable source of truth
+and SQLite as a disposable, rebuildable index. Codex, Claude Code, Claude
+Desktop, and Hermes can use the same stdio MCP server instead of keeping
+conflicting long-term memory copies.
 
-> Most AI memory systems only solve **storage**.
-> **DNA Memory** is about how agents actually **learn and evolve**.
+It does not equate storing every conversation with learning. Native transcripts
+stay in their original clients. DNA Memory stores bounded provenance pointers,
+reviewable proposals, and verified reusable conclusions.
 
-It is not just a memory store. It is a memory evolution system with:
-- **3-layer memory architecture**
-- **reinforcement and decay**
-- **reflection (`reflect`)**
-- **promotion to long-term memory (`promote`)**
-- **duplicate cleanup (`dedupe`)**
-- **FTS5-powered recall search**
-- **background daemon maintenance**
+## Safety model
 
----
+- Markdown is durable truth; SQLite is search, queue, and telemetry state.
+- `memory_remember` stores concise conclusions, not transcripts.
+- Native importers retain IDs, paths, hashes, offsets, and counts by default.
+- Automatic extraction produces at most three candidates per session and 800
+  characters per summary.
+- Credential-like content is rejected.
+- Cloud-only Claude Desktop chats require explicit MCP writeback when no stable
+  local transcript source is available.
+- Memory failure never blocks the primary task.
 
-## 🆚 Why not just use a normal memory store?
-
-| Capability | Mem0 | Zep | LangChain Memory | **DNA Memory** |
-|------------|:----:|:---:|:----------------:|:--------------:|
-| Basic storage | ✅ | ✅ | ✅ | ✅ |
-| Vector / semantic retrieval | ✅ | ✅ | ✅ | ⚠️ extensible |
-| Multi-layer architecture | ❌ | ⚠️ | ❌ | ✅ **working / short / long** |
-| Active forgetting | ❌ | ❌ | ❌ | ✅ |
-| Reflection loop | ❌ | ❌ | ❌ | ✅ |
-| Pattern extraction | ❌ | ❌ | ❌ | ✅ |
-| Long-term promotion | ❌ | ❌ | ❌ | ✅ |
-| Local-first / minimal core deps | ❌ | ❌ | ❌ | ✅ |
-| Built for agent workflows | ⚠️ | ⚠️ | ⚠️ | ✅ |
-
-**Positioning in one sentence:**
-
-> DNA Memory helps AI agents not only remember, but also reinforce, forget, summarize, and evolve like a real cognitive system.
-
----
-
-## 🚀 Quick Start in 30 Seconds
+## Install
 
 ```bash
-# 1) Clone into your OpenClaw skills directory
-git clone https://github.com/AIPMAndy/dna-memory.git ~/.openclaw/skills/dna-memory
+git clone https://github.com/AIPMAndy/dna-memory.git \
+  "$HOME/.local/share/dna-memory/app"
+cd "$HOME/.local/share/dna-memory/app"
 
-# 2) Remember one preference
-python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py remember "The user prefers concise and direct responses" -t preference -i 0.9
+python3 -m venv "$HOME/.local/share/dna-memory/mcp-venv"
+"$HOME/.local/share/dna-memory/mcp-venv/bin/pip" install \
+  -r requirements-mcp.txt
 
-# 3) Recall related memories
-python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py recall "concise direct"
-
-# 4) Inspect stats
-python3 ~/.openclaw/skills/dna-memory/scripts/evolve.py stats
+mkdir -p "$HOME/.config/dna-memory" "$HOME/Documents/DNA-Memory-Vault/Memory"
+cp docs/profiles/profile.example.json \
+  "$HOME/.config/dna-memory/profile.json"
 ```
 
-**Why it is practical:**
-- core features run on Python + SQLite
-- no external database required
-- local-first by default
-- ideal for personal assistants, local agents, and autonomous workflows
-
----
-
-## ✨ Core Capabilities
-
-### 1. Three-layer memory architecture
-
-```text
-Working Memory
-  ↓ filter
-Short-term Memory
-  ↓ consolidate / promote
-Long-term Memory
-```
-
-| Layer | Role | Typical content |
-|------|------|-----------------|
-| Working | temporary session context | current task state, fresh facts |
-| Short-term | recent important information | preferences, lessons, recent errors |
-| Long-term | stable knowledge and patterns | rules, skills, persistent preferences |
-
-### 2. Reinforcement and forgetting
-
-- **used often → higher weight**
-- **unused for a long time → decay**
-- **low-weight memories → removable**
-- **stable high-value memories → promoted to long-term memory**
-
-### 3. Reflection (`reflect`)
-
-`reflect` does two things:
-- extracts recurring patterns from recent high-weight memories
-- promotes stable short-term memories into long-term memory
-
-### 4. Better recall search
-
-Current recall supports:
-- **multi-keyword AND search**
-- **type filters** like `type:error` / `type:skill`
-- **SQLite FTS5 full-text search**
-- automatic fallback to LIKE search if FTS5 is unavailable
-
-Examples:
+The profile stays outside the repository. Adjust the vault and platform Skill
+roots, then verify the store:
 
 ```bash
-python3 scripts/evolve.py recall "feishu api"
-python3 scripts/evolve.py recall "type:error github"
-python3 scripts/evolve.py recall "user preference concise"
+export DNA_MEMORY_PROFILE="$HOME/.config/dna-memory/profile.json"
+python3 dna.py memory status --json
+python3 dna.py memory reindex --json
 ```
 
-### 5. Background maintenance daemon
-
-The daemon can automatically run:
-- `reflect`
-- `decay`
-- throttled maintenance so the same batch is not repeatedly summarized
-
-It can also be registered with **macOS launchd** for auto-start on boot.
-
----
-
-## 📦 Actual current architecture
-
-```text
-dna-memory/
-├── scripts/
-│   ├── evolve.py              # core CLI: remember / recall / stats / reflect / dedupe ...
-│   ├── dna_memory_daemon.py   # background maintenance daemon
-│   ├── semantic_search.py     # experimental semantic search module
-│   ├── analyze.py
-│   ├── api.py
-│   ├── autocollect.py
-│   ├── backup.py
-│   ├── cli.py
-│   ├── detailed_stats.py
-│   ├── knowme_link.py
-│   ├── reminder.py
-│   ├── trigger.py
-│   └── visualize.py
-├── memory/
-│   ├── memory.db              # SQLite primary store (memories + operations)
-│   └── working.json           # working memory
-├── assets/
-│   └── config.json            # daemon / decay config
-├── README.md
-├── README_EN.md
-└── SKILL.md
-```
-
-> Note: `memory/*.db` should not be committed. The repo now ignores real memory database files by default.
-
----
-
-## 🧪 Core Commands
-
-### Remember
+## Connect Codex, Claude Code, and Hermes
 
 ```bash
-python3 scripts/evolve.py remember "Andy prefers concise and direct responses" -t preference -i 0.95
+ROOT="$HOME/.local/share/dna-memory/app"
+PYTHON="$HOME/.local/share/dna-memory/mcp-venv/bin/python"
+PROFILE="$HOME/.config/dna-memory/profile.json"
+
+codex mcp add dna-memory \
+  --env "DNA_MEMORY_PROFILE=$PROFILE" \
+  -- "$PYTHON" "$ROOT/scripts/memory_mcp.py"
+
+claude mcp add --scope user dna-memory \
+  -e "DNA_MEMORY_PROFILE=$PROFILE" \
+  -- "$PYTHON" "$ROOT/scripts/memory_mcp.py"
+
+hermes mcp add dna-memory \
+  --command "$PYTHON" \
+  --env "DNA_MEMORY_PROFILE=$PROFILE" \
+  --args "$ROOT/scripts/memory_mcp.py"
 ```
 
-### Recall
+Verify runtime connectivity, not only configuration text:
 
 ```bash
-python3 scripts/evolve.py recall "concise response"
-python3 scripts/evolve.py recall "type:skill feishu"
+codex mcp get dna-memory
+claude mcp get dna-memory
+hermes mcp test dna-memory
 ```
 
-### Stats
+Claude Desktop uses `mcpServers` with absolute paths. See
+[client setup](docs/mcp-and-client-adapters.md) for migration, backup, hooks,
+importers, and rollback.
+
+## MCP tools
+
+| Tool | Purpose |
+|---|---|
+| `memory_recall` | Recall active memories for a focused query |
+| `memory_get` | Fetch one memory and its replacement relationships |
+| `memory_remember` | Write a verified durable conclusion |
+| `memory_feedback` | Record `useful` or `misleading` recall feedback |
+| `memory_close_session` | Store bounded session provenance |
+| `memory_status` | Inspect truth and index state |
+| `memory_reindex` | Rebuild SQLite from Markdown |
+
+Distribute the bundled [dna-memory-loop](skills/dna-memory-loop/SKILL.md) to
+each client. It establishes the same behavior everywhere: recall before
+context-dependent work, give feedback only for used results, and write back
+only after verification.
+
+## Operations
 
 ```bash
-python3 scripts/evolve.py stats
+python3 dna.py memory status --json
+python3 dna.py memory coverage --json
+python3 dna.py memory value --json
+python3 dna.py memory reindex --json
+python3 dna.py memory maintain daily --json
+python3 dna.py memory maintain weekly --json
+python3 dna.py memory maintain monthly --json
 ```
 
-### Reflect
+When a new verified fact invalidates an older one, pass exact old memory IDs in
+`supersedes`. Old Markdown remains available as history, while default recall
+returns active conclusions only. DNA Memory never infers replacement from type
+or project alone.
+
+## Bounded native import
 
 ```bash
-python3 scripts/evolve.py reflect
+python3 scripts/import_codex_rollouts.py
+python3 scripts/import_claudian_sessions.py
+python3 scripts/import_claude_desktop_sessions.py
+python3 scripts/import_hermes_sessions.py
+python3 scripts/import_native_history.py
 ```
 
-### Promote
+Importers are incremental and idempotent. Ordinary events remain provenance
+pointers. Explicit `DNA_MEMORY_PROPOSAL {JSON}` markers and bounded signal
+extraction create review candidates; daily maintenance still applies type,
+sensitivity, capacity, and deduplication gates.
+
+Capture is not the same as durable learning. Evaluate both capture coverage and
+the number of verified memories that are later recalled and marked useful.
+
+## Shared Skill management
 
 ```bash
-python3 scripts/evolve.py promote --id 12
+cp assets/skills.example.json "$HOME/.config/dna-memory/skills.json"
+python3 dna.py skills inventory --json
+python3 dna.py skills doctor --json
+python3 dna.py skills sync --json
+python3 dna.py skills sync --apply --json
 ```
 
-### Dedupe
+The registry grants distribution authority only for named Skills. Unregistered
+platform-specific Skills are never deleted or overwritten. `sync` is a dry run
+unless `--apply` is present.
+
+## Public release safety
+
+Runtime profiles, databases, native sessions, memory JSON, private Skills, and
+deployment notes are excluded from source control. Run this before publishing:
 
 ```bash
-python3 scripts/evolve.py dedupe
+python3 scripts/check_public_safety.py
 ```
 
-### Daemon
+If a credential was ever committed, deleting the current file is insufficient:
+revoke the credential and clean the Git history.
+
+## Validate
 
 ```bash
-# start
-python3 scripts/dna_memory_daemon.py start
-
-# check status
-python3 scripts/dna_memory_daemon.py status
-
-# stop
-python3 scripts/dna_memory_daemon.py stop
+python3 -m pytest -q
+python3 -m compileall -q dna.py dna scripts tests
+python3 scripts/check_public_safety.py
+git diff --check
 ```
 
----
+## License
 
-## ⚙️ Use Cases
-
-### 1. Personal AI assistants
-- remember user preferences
-- develop a stable collaboration style over time
-- learn from mistakes instead of repeating them
-
-### 2. Agent workflow orchestration
-- turn finished tasks into reusable skills
-- store failure cases as error memories
-- extract patterns from long-running work
-
-### 3. AI products with personalization
-- accumulate user profiles
-- track behavioral patterns
-- build long-term personalization
-
-### 4. Self-improving agent systems
-- works well with OpenClaw, self-improving-agent, and custom agent stacks
-- turns operational experience into reusable memory assets
-
----
-
-## 🧭 Recommended Workflow
-
-```text
-Receive task
-  ↓
-Recall related memories
-  ↓
-Execute
-  ↓
-Remember new preferences / skills / errors
-  ↓
-Reflect recurring patterns
-  ↓
-Promote into long-term memory
-```
-
-This workflow is especially useful when:
-- the user corrects the agent
-- a new preference is learned
-- an API/tool fails
-- a long task finishes
-- a repeatable pattern appears
-
----
-
-## 🗺️ Roadmap
-
-- [x] SQLite single-store refactor
-- [x] remember / recall / reflect / promote / dedupe CLI
-- [x] daemon for automatic reflect / decay
-- [x] FTS5-based recall search
-- [x] launchd auto-start setup
-- [ ] better Chinese tokenization and ranking
-- [ ] real embedding-based semantic retrieval
-- [ ] stronger memory graph visualization
-- [ ] more complete import / export / migration tooling
-- [ ] shared memory spaces for multi-agent systems
-
----
-
-## 🤝 Contributing
-
-Issues and PRs are welcome.
-
-High-impact contribution areas:
-- recall ranking quality
-- Chinese search experience
-- pattern extraction quality
-- memory visualization
-- embedding provider integrations
-
----
-
-## 👨‍💻 Author
-
-**Andy / AI酋长Andy**  
-Ex-Tencent / Baidu AI Product Expert → LLM Unicorn VP → Startup CEO
-
-Focus areas:
-- AI agents
-- AI commercialization
-- memory systems
-- human augmentation
-
-GitHub: https://github.com/AIPMAndy
-
----
-
-## 📄 License
-
-[Apache 2.0](LICENSE)
-
----
-
-<div align="center">
-
-**If this project helps you, give it a ⭐ Star.**
-
-</div>
+[MIT](LICENSE)
