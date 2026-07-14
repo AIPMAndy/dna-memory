@@ -77,11 +77,11 @@ After the paragraph ending with “verified reusable conclusions.”, insert:
 ## Core philosophy: from conversation data to reusable cognition
 
 > **DNA Memory does not treat storing conversations as forming memories.** It is
-> a biomimetically inspired cognitive memory system: cross-client conversations
-> are raw perceptual input, then bounded collection, signal extraction,
-> importance and confidence weighting, cognitive classification, verification,
-> recall feedback, and explicit replacement progressively abstract that data into
-> reusable cognition.
+> a biomimetically inspired cognitive memory system. Cross-client conversations
+> are raw perceptual input; bounded collection, signal extraction, importance and
+> confidence weighting, cognitive classification, verification, recall feedback,
+> and explicit replacement progressively abstract that data into reusable
+> cognition.
 
 It is not another indefinitely growing chat database. Native conversations are
 source material; only conclusions that have been filtered, verified, and are

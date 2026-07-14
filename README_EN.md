@@ -21,6 +21,44 @@ It does not equate storing every conversation with learning. Native transcripts
 stay in their original clients. DNA Memory stores bounded provenance pointers,
 reviewable proposals, and verified reusable conclusions.
 
+## Core philosophy: from conversation data to reusable cognition
+
+> **DNA Memory does not treat storing conversations as forming memories.** It is
+> a biomimetically inspired cognitive memory system. Cross-client conversations
+> are raw perceptual input; bounded collection, signal extraction, importance and
+> confidence weighting, cognitive classification, verification, recall feedback,
+> and explicit replacement progressively abstract that data into reusable
+> cognition.
+
+It is not another indefinitely growing chat database. Native conversations are
+source material; only conclusions that have been filtered, verified, and are
+worth reusing in future work become durable memory.
+
+```text
+raw conversations
+  -> bounded collection and signal extraction
+  -> importance, confidence, and usage-feedback weighting
+  -> cognitive classification
+  -> verified crystallization into durable cognition
+  -> task-focused recall
+  -> useful / misleading feedback and supersedes evolution
+```
+
+The current implementation organizes durable cognition into four groups and
+eight memory types:
+
+| Cognitive model | Memory types | Purpose |
+|---|---|---|
+| Individual tendencies | `preference` | Stable preferences and collaboration habits |
+| Facts and insights | `fact`, `insight` | Verified facts and knowledge abstracted from them |
+| Decisions and state | `decision`, `project_state`, `open_loop` | Rationale, current state, and unresolved work |
+| Procedures and experience | `workflow`, `error_lesson` | Reusable workflows and verified lessons from failure |
+
+Biomimetics is a design inspiration here, not a claim to replicate the human
+brain. DNA Memory's value is not how many conversations it stores, but how much
+high-quality cognition it forms and whether that cognition is accurately
+recalled and effectively reused in later decisions.
+
 ## Safety model
 
 - Markdown is durable truth; SQLite is search, queue, and telemetry state.
