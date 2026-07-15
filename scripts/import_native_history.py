@@ -102,29 +102,67 @@ def prune_obsolete_sources(paths_by_client, queue):
     return {"checkpoints": len(obsolete), "events": events}
 
 
-def import_paths(paths_by_client, queue, max_files=40, max_bytes=64 * 1024, min_age_seconds=120):
-    total = {"files": 0, "processed": 0, "enqueued": 0, "proposals": 0}
+def import_paths(
+    paths_by_client,
+    queue,
+    max_files=40,
+    max_bytes=64 * 1024,
+    min_age_seconds=120,
+    reextract_days=None,
+    now=None,
+):
+    reference_time = time.time() if now is None else float(now)
+    if reextract_days is not None and int(reextract_days) <= 0:
+        raise ValueError("reextract_days must be positive")
+    cutoff = (
+        reference_time - int(reextract_days) * 86400
+        if reextract_days is not None else None
+    )
+    total = {
+        "files": 0,
+        "processed": 0,
+        "enqueued": 0,
+        "proposals": 0,
+        "errors": 0,
+        "proposal_types": {},
+        "error_types": {},
+    }
     for client, paths in source_files(paths_by_client).items():
         paths = sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)
         pending = []
         for path in paths:
             stat = path.stat()
-            if time.time() - stat.st_mtime < int(min_age_seconds):
+            if reference_time - stat.st_mtime < int(min_age_seconds):
                 continue
             checkpoint = queue.get_checkpoint(
                 "native-auto:{}:{}".format(client, path.expanduser().resolve())
             )
-            if not checkpoint or checkpoint[0] != stat.st_ino or checkpoint[1] != stat.st_size:
-                pending.append(path)
-        for path in pending[:int(max_files)]:
-            try:
-                result = import_native_file(path, queue, client=client, max_bytes=max_bytes)
-            except (OSError, ValueError):
-                continue
+            force = cutoff is not None and stat.st_mtime >= cutoff
+            if force or not checkpoint or checkpoint[0] != stat.st_ino or checkpoint[1] != stat.st_size:
+                pending.append((path, force))
+        for path, force in pending[:int(max_files)]:
             total["files"] += 1
+            try:
+                result = import_native_file(
+                    path,
+                    queue,
+                    client=client,
+                    max_bytes=max_bytes,
+                    force=force,
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+                total["errors"] += 1
+                suffix = path.suffix.lower().lstrip(".") or "unknown"
+                key = "{}:{}:{}".format(client, suffix, type(error).__name__)
+                total["error_types"][key] = total["error_types"].get(key, 0) + 1
+                continue
             total["processed"] += int(bool(result["processed"]))
             total["enqueued"] += result["enqueued"]
             total["proposals"] += result["proposals"]
+            for memory_type, count in result.get("proposal_types", {}).items():
+                total["proposal_types"][memory_type] = (
+                    total["proposal_types"].get(memory_type, 0) + count
+                )
     return total
 
 
@@ -144,17 +182,86 @@ def configured_paths(config):
     }
 
 
+def run_backtest(
+    paths_by_client,
+    database_path,
+    days=7,
+    max_files=40,
+    max_bytes=64 * 1024,
+    min_age_seconds=120,
+    now=None,
+):
+    days = int(days)
+    if days <= 0:
+        raise ValueError("days must be positive")
+    database_path = Path(database_path).expanduser().resolve()
+    if database_path.exists() and database_path.stat().st_size > 0:
+        raise ValueError("backtest database must be new or empty")
+    reference_time = time.time() if now is None else float(now)
+    cutoff = reference_time - days * 86400
+    recent = {
+        client: [
+            path for path in paths
+            if cutoff <= path.stat().st_mtime
+            and reference_time - path.stat().st_mtime >= int(min_age_seconds)
+        ]
+        for client, paths in source_files(paths_by_client).items()
+    }
+    queue = CandidateEventQueue(database_path)
+    try:
+        result = import_paths(
+            recent,
+            queue,
+            max_files=max_files,
+            max_bytes=max_bytes,
+            min_age_seconds=min_age_seconds,
+            now=reference_time,
+        )
+    finally:
+        queue.connection.close()
+    return {"mode": "backtest", **result}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--max-files", type=int, default=int(os.getenv("DNA_MEMORY_MAX_FILES", "40")))
     parser.add_argument("--max-bytes", type=int, default=64 * 1024)
     parser.add_argument("--prune-obsolete", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--reextract-days", type=int)
+    mode.add_argument("--backtest-days", type=int)
+    parser.add_argument("--backtest-db", type=Path)
     args = parser.parse_args(argv)
+    if args.reextract_days is not None and args.reextract_days <= 0:
+        parser.error("--reextract-days must be positive")
+    if args.backtest_days is not None and args.backtest_days <= 0:
+        parser.error("--backtest-days must be positive")
+    if bool(args.backtest_days) != bool(args.backtest_db):
+        parser.error("--backtest-days and --backtest-db must be used together")
     config = load_config()
+    paths = configured_paths(config)
+    if args.backtest_days is not None:
+        backtest_path = args.backtest_db.expanduser().resolve()
+        if backtest_path == Path(config.database_path).expanduser().resolve():
+            parser.error("--backtest-db must not be the production database")
+        result = run_backtest(
+            paths,
+            backtest_path,
+            days=args.backtest_days,
+            max_files=args.max_files,
+            max_bytes=args.max_bytes,
+        )
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
     queue = CandidateEventQueue(config.database_path, config.max_candidate_events)
     try:
-        paths = configured_paths(config)
-        result = import_paths(paths, queue, args.max_files, args.max_bytes)
+        result = import_paths(
+            paths,
+            queue,
+            args.max_files,
+            args.max_bytes,
+            reextract_days=args.reextract_days,
+        )
         if args.prune_obsolete:
             result["pruned"] = prune_obsolete_sources(paths, queue)
     finally:
