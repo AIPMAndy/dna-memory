@@ -218,6 +218,18 @@ python3 scripts/import_native_history.py
 `DNA_MEMORY_PROPOSAL {JSON}` 或通过有界信号提取的短结论才进入候选队列，
 并且仍需经过 daily 维护的类型、敏感信息、容量和去重检查。
 
+规则升级时先在独立临时数据库回测最近 7 天，再做有界生产重提取。导入器只输出
+聚合计数；自动结果仍进入 `memory_proposal`，不会绕过人工检查和 daily 安全结晶：
+
+```bash
+python3 -m scripts.import_native_history --backtest-days 7 \
+  --backtest-db /tmp/dna-memory-backtest.db
+python3 -m scripts.import_native_history --reextract-days 7
+```
+
+只有人工抽查误采集率不高于 10% 且敏感泄露为 0 时才运行生产重提取。完整操作与
+回滚边界见 [`docs/mcp-and-client-adapters.md`](docs/mcp-and-client-adapters.md)。
+
 这意味着“扫描到了会话”不等于“已经形成长期认知”。衡量系统价值时应同时看：
 
 1. 自动捕获覆盖率。
