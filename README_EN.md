@@ -178,6 +178,20 @@ pointers. Explicit `DNA_MEMORY_PROPOSAL {JSON}` markers and bounded signal
 extraction create review candidates; daily maintenance still applies type,
 sensitivity, capacity, and deduplication gates.
 
+After changing native extraction rules, backtest the last seven days in a
+separate empty database before bounded production re-extraction. The importer
+emits aggregate metrics only, and automatic results remain reviewed
+`memory_proposal` events rather than direct long-term memories:
+
+```bash
+python3 -m scripts.import_native_history --backtest-days 7 \
+  --backtest-db /tmp/dna-memory-backtest.db
+python3 -m scripts.import_native_history --reextract-days 7
+```
+
+Proceed only when manual sampling finds at most 10% false positives and zero
+sensitive leakage. Daily maintenance remains the crystallization gate.
+
 Capture is not the same as durable learning. Evaluate both capture coverage and
 the number of verified memories that are later recalled and marked useful.
 

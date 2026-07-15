@@ -175,6 +175,45 @@ python3 scripts/import_native_history.py
 来源指针由 `max_candidate_events` 限制，默认 10,000 条待处理普通事件。达到上限
 时拒绝新增普通指针，但不阻塞客户端主任务。不要用扩大上限代替维护。
 
+### 多行认知提取的安全回测
+
+升级提取规则后，先把最近 7 天来源写入一个全新的临时数据库。回测只输出文件数、
+错误类别、候选数和记忆类型分布，不修改生产 checkpoint，也不运行 daily：
+
+```bash
+python3 -m scripts.import_native_history \
+  --backtest-days 7 \
+  --backtest-db /tmp/dna-memory-backtest.db
+```
+
+回测数据库必须不存在或为空，且不能是 profile 指向的生产数据库。`errors` 表示解析
+失败；`proposals` 表示识别出的候选数；`proposal_types` 用于检查八类记忆是否异常
+偏斜。需要人工抽查时，只在本机查看临时库，不要把摘要复制到 issue、日志或公开报告：
+
+```bash
+sqlite3 /tmp/dna-memory-backtest.db \
+  "SELECT client, memory_type, excerpt FROM candidate_events WHERE event_type='memory_proposal' ORDER BY event_id;"
+```
+
+把新增候选逐条标为真阳性、误采集或模糊。只有明确误采集比例不高于 10%，且凭证、
+完整工具输出和大段 transcript 泄露为 0 时，才允许生产重提取：
+
+```bash
+python3 -m scripts.import_native_history --reextract-days 7
+python3 -m scripts.import_native_history --reextract-days 7
+```
+
+`--reextract-days` 只让指定时间范围内的文件绕过相同哈希 checkpoint 的快速返回；
+它不删除 checkpoint、事件或原生会话。稳定 event ID 保证第二次运行不会重复入队。
+生产候选仍只是 `memory_proposal`，必须再次人工查看后才可运行：
+
+```bash
+python3 dna.py memory maintain daily --json
+```
+
+如果质量门槛未通过，停止在临时库或 pending proposal 阶段，先把误采集样本脱敏为
+回归测试；不要运行 daily，也不要扩大扫描时间范围。
+
 ## 维护与价值
 
 ```bash
