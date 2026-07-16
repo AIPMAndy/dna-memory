@@ -35,3 +35,14 @@ def test_memory_loop_has_bounded_active_use_gates():
     assert "simple, self-contained" in body
     assert "supersedes" in body
     assert "Never infer replacement" in body
+
+
+def test_memory_loop_requires_recall_for_history_dependent_work():
+    body = (ROOT / "skills/dna-memory-loop/SKILL.md").read_text(encoding="utf-8")
+
+    assert "MUST recall before relying on history" in body
+    for trigger in ("prior", "continue", "last time", "same plan"):
+        assert trigger in body
+    assert "one to four distinctive terms" in body
+    assert "simple, self-contained" in body
+    assert "Memory failure must not block" in body

@@ -10,6 +10,11 @@ history as a transcript source, not as a competing durable memory store.
 
 ## Before substantive work
 
+You MUST recall before relying on history. Treat a task as history-dependent
+when it refers to prior work, asks to continue, mentions last time or the same plan,
+names an existing project or path, or depends on a durable preference, known error,
+workflow, project state, or open loop.
+
 1. Extract one to four distinctive terms from the request, project, error, or expected result.
 2. Call `memory_recall` separately for each term. Include the real client and session ID when available.
 3. Deduplicate by memory ID. Inject at most five memories and about 2,000 tokens total.
