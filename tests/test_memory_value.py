@@ -96,6 +96,12 @@ def test_memory_value_aggregates_windows_clients_backlog_and_storage(tmp_path):
     assert payload["clients"]["hermes"]["misleading"] == 1
     assert payload["clients"]["claude"]["recall_attempts"] == 1
     assert payload["clients"]["codex"]["new_memories"] == 1
+    assert payload["clients"]["codex"]["recall_hits"] == 1
+    assert payload["clients"]["claude"]["recall_hits"] == 0
+    assert payload["clients"]["hermes"]["recall_hits"] == 1
+    assert payload["clients"]["codex"]["recall_share"] == 1 / 3
+    assert payload["clients"]["claude"]["recall_share"] == 1 / 3
+    assert payload["clients"]["hermes"]["recall_share"] == 1 / 3
     assert payload["backlog"] == {
         "reviewable_proposals": 0,
         "provenance_events": 2,
@@ -118,6 +124,8 @@ def test_memory_value_returns_zeros_without_a_database(tmp_path):
 
     assert payload["all_time"]["recall_attempts"] == 0
     assert payload["clients"]["codex"]["candidate_events"] == 0
+    assert payload["clients"]["codex"]["recall_hits"] == 0
+    assert payload["clients"]["codex"]["recall_share"] == 0.0
     assert payload["backlog"]["oldest_pending_at"] is None
 
 

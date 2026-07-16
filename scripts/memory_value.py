@@ -9,8 +9,9 @@ from urllib.parse import quote
 
 
 CLIENT_FIELDS = (
-    "candidate_events", "recall_attempts", "returned_memories",
-    "useful", "misleading", "new_memories",
+    "candidate_events", "recall_attempts", "recall_hits",
+    "returned_memories", "useful", "misleading", "new_memories",
+    "recall_share",
 )
 
 OFFSET_WITHOUT_COLON = re.compile(r"([+-]\d{2})(\d{2})$")
@@ -137,11 +138,14 @@ def _client_metrics(connection):
         ):
             add(client, "candidate_events", count)
     if _table_exists(connection, "memory_recall_events"):
-        for client, attempts, returned in connection.execute(
-            "SELECT client, COUNT(*), COALESCE(SUM(result_count), 0) "
+        for client, attempts, hits, returned in connection.execute(
+            "SELECT client, COUNT(*), "
+            "COALESCE(SUM(CASE WHEN result_count > 0 THEN 1 ELSE 0 END), 0), "
+            "COALESCE(SUM(result_count), 0) "
             "FROM memory_recall_events GROUP BY client"
         ):
             add(client, "recall_attempts", attempts)
+            add(client, "recall_hits", hits)
             add(client, "returned_memories", returned)
     if _table_exists(connection, "memory_feedback"):
         for client, outcome, count in connection.execute(
@@ -160,6 +164,11 @@ def _client_metrics(connection):
                 values = []
             for client in set(values or ["unknown"]):
                 add(client, "new_memories", 1)
+    total_attempts = sum(item["recall_attempts"] for item in clients.values())
+    for item in clients.values():
+        item["recall_share"] = (
+            item["recall_attempts"] / total_attempts if total_attempts else 0.0
+        )
     return clients
 
 
