@@ -97,7 +97,14 @@ def test_memory_value_aggregates_windows_clients_backlog_and_storage(tmp_path):
     assert payload["clients"]["claude"]["recall_attempts"] == 1
     assert payload["clients"]["codex"]["new_memories"] == 1
     assert payload["backlog"] == {
-        "pending": 2, "oldest_pending_at": "2026-07-08 12:00:00"
+        "reviewable_proposals": 0,
+        "provenance_events": 2,
+        "lifecycle_events": 0,
+        "other_pending": 0,
+        "total_pending": 2,
+        "pending": 2,
+        "oldest_pending_at": "2026-07-08 12:00:00",
+        "oldest_reviewable_at": None,
     }
     assert payload["storage"]["database_bytes"] > 0
     assert payload["storage"]["backup_bytes"] == 6
@@ -138,3 +145,40 @@ def test_memory_value_windows_accept_iso_offsets_and_unix_seconds(tmp_path):
 
     assert payload["all_time"]["new_memories"] == 6
     assert payload["windows"]["7d"]["new_memories"] == 4
+
+
+def test_memory_value_classifies_pending_events(tmp_path):
+    cfg = config(tmp_path)
+    queue = CandidateEventQueue(cfg.database_path)
+    event_types = [
+        "memory_proposal", "session_updated", "session_meta", "turn_context",
+        "SessionStart", "Stop", "SessionEnd", "session_closed", "task_complete",
+    ]
+    for index, event_type in enumerate(event_types):
+        queue.enqueue({
+            "event_id": "event-{}".format(index),
+            "client": "codex",
+            "event_type": event_type,
+        })
+    queue.connection.execute(
+        "UPDATE candidate_events SET created_at='2026-07-08 12:00:00'"
+    )
+    queue.connection.execute(
+        "UPDATE candidate_events SET created_at='2026-07-09 12:00:00' "
+        "WHERE event_type='memory_proposal'"
+    )
+    queue.connection.commit()
+    queue.connection.close()
+
+    backlog = memory_value(cfg, now="2026-07-11 12:00:00")["backlog"]
+
+    assert backlog == {
+        "reviewable_proposals": 1,
+        "provenance_events": 3,
+        "lifecycle_events": 4,
+        "other_pending": 1,
+        "total_pending": 9,
+        "pending": 9,
+        "oldest_pending_at": "2026-07-08 12:00:00",
+        "oldest_reviewable_at": "2026-07-09 12:00:00",
+    }

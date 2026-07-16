@@ -14,6 +14,12 @@ CLIENT_FIELDS = (
 )
 
 OFFSET_WITHOUT_COLON = re.compile(r"([+-]\d{2})(\d{2})$")
+PROVENANCE_EVENT_TYPES = frozenset((
+    "session_updated", "session_meta", "turn_context",
+))
+LIFECYCLE_EVENT_TYPES = frozenset((
+    "SessionStart", "Stop", "SessionEnd", "session_closed",
+))
 
 
 def _family(client):
@@ -157,6 +163,44 @@ def _client_metrics(connection):
     return clients
 
 
+def _empty_backlog():
+    return {
+        "reviewable_proposals": 0,
+        "provenance_events": 0,
+        "lifecycle_events": 0,
+        "other_pending": 0,
+        "total_pending": 0,
+        "pending": 0,
+        "oldest_pending_at": None,
+        "oldest_reviewable_at": None,
+    }
+
+
+def _backlog(connection):
+    result = _empty_backlog()
+    rows = connection.execute(
+        "SELECT event_type, created_at FROM candidate_events WHERE status='pending'"
+    ).fetchall()
+    reviewable_times = []
+    pending_times = []
+    for event_type, created_at in rows:
+        pending_times.append(created_at)
+        if event_type == "memory_proposal":
+            result["reviewable_proposals"] += 1
+            reviewable_times.append(created_at)
+        elif event_type in PROVENANCE_EVENT_TYPES:
+            result["provenance_events"] += 1
+        elif event_type in LIFECYCLE_EVENT_TYPES:
+            result["lifecycle_events"] += 1
+        else:
+            result["other_pending"] += 1
+    result["total_pending"] = len(rows)
+    result["pending"] = len(rows)
+    result["oldest_pending_at"] = min(pending_times) if pending_times else None
+    result["oldest_reviewable_at"] = min(reviewable_times) if reviewable_times else None
+    return result
+
+
 def _storage(config):
     database_bytes = config.database_path.stat().st_size if config.database_path.is_file() else 0
     backup_bytes = 0
@@ -179,7 +223,7 @@ def memory_value(config, now=None):
             name: {field: 0 for field in CLIENT_FIELDS}
             for name in ("codex", "claude", "hermes")
         },
-        "backlog": {"pending": 0, "oldest_pending_at": None},
+        "backlog": _empty_backlog(),
         "storage": _storage(config),
     }
     if not config.database_path.is_file():
@@ -192,13 +236,7 @@ def memory_value(config, now=None):
         payload["windows"]["30d"] = _metrics(connection, 30, now)
         payload["clients"] = _client_metrics(connection)
         if _table_exists(connection, "candidate_events"):
-            row = connection.execute(
-                "SELECT COUNT(*), MIN(created_at) FROM candidate_events "
-                "WHERE status='pending'"
-            ).fetchone()
-            payload["backlog"] = {
-                "pending": row[0], "oldest_pending_at": row[1]
-            }
+            payload["backlog"] = _backlog(connection)
         return payload
     finally:
         connection.close()
