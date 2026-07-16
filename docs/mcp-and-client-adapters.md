@@ -229,6 +229,24 @@ python3 dna.py memory maintain monthly --json
 - weekly：daily + SQLite 在线备份、有限轮换和 `VACUUM`。
 - monthly：weekly + `PRAGMA integrity_check` 和 Markdown 重建核对。
 
+`memory value` 的 backlog 字段按用途拆分：
+
+| 字段 | 含义 |
+|---|---|
+| `reviewable_proposals` | pending 的 `memory_proposal`，是真正待审认知候选 |
+| `provenance_events` | 会话、轮次和来源指针 |
+| `lifecycle_events` | 客户端启动、停止和关闭事件 |
+| `other_pending` | 尚未显式分类的新事件类型 |
+| `total_pending` | 所有 pending 事件之和 |
+| `pending` | `total_pending` 的兼容别名 |
+| `oldest_reviewable_at` | 最早待审候选时间 |
+
+客户端字段中的 `recall_attempts`、`recall_hits`、`useful`、`misleading` 和
+`recall_share` 用于观察各客户端是否实际进入召回闭环。`recall_share` 仅表示
+调用分布，不应作为质量评分。7 天和 30 天窗口兼容 SQLite 时间、ISO 8601
+`+0800`/`+08:00` 偏移和 Unix 秒；不可解析时间仍保留在全量统计中，但不进入
+时间窗口。
+
 自动化可使用 macOS LaunchAgent、cron 或其他调度器。建议使用通用 label：
 
 ```text

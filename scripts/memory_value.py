@@ -2,15 +2,25 @@
 """Privacy-bounded value metrics for the cross-client memory loop."""
 
 import json
+import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 
 CLIENT_FIELDS = (
-    "candidate_events", "recall_attempts", "returned_memories",
-    "useful", "misleading", "new_memories",
+    "candidate_events", "recall_attempts", "recall_hits",
+    "returned_memories", "useful", "misleading", "new_memories",
+    "recall_share",
 )
+
+OFFSET_WITHOUT_COLON = re.compile(r"([+-]\d{2})(\d{2})$")
+PROVENANCE_EVENT_TYPES = frozenset((
+    "session_updated", "session_meta", "turn_context",
+))
+LIFECYCLE_EVENT_TYPES = frozenset((
+    "SessionStart", "Stop", "SessionEnd", "session_closed",
+))
 
 
 def _family(client):
@@ -30,14 +40,46 @@ def _table_exists(connection, table):
     ).fetchone() is not None
 
 
-def _window_clause(column, days, now):
+def _parse_timestamp(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.replace(".", "", 1).isdigit():
+            return datetime.fromtimestamp(float(text), timezone.utc)
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        text = OFFSET_WITHOUT_COLON.sub(r"\1:\2", text)
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _in_window(value, days, now):
     if days is None:
-        return "", ()
-    return (
-        " WHERE datetime({}) >= datetime(?, ?) "
-        "AND datetime({}) <= datetime(?)".format(column, column),
-        (now, "-{} days".format(days), now),
-    )
+        return True
+    created_at = _parse_timestamp(value)
+    current = _parse_timestamp(now)
+    if created_at is None or current is None:
+        return False
+    return current - timedelta(days=days) <= created_at <= current
+
+
+def _windowed_rows(connection, table, columns, days, now):
+    rows = connection.execute(
+        "SELECT {} FROM {}".format(", ".join(columns), table)
+    ).fetchall()
+    return [row for row in rows if _in_window(row[-1], days, now)]
 
 
 def _metrics(connection, days, now):
@@ -47,34 +89,29 @@ def _metrics(connection, days, now):
         "unfeedback": 0, "new_memories": 0,
     }
     if _table_exists(connection, "memory_recall_events"):
-        clause, params = _window_clause("created_at", days, now)
-        row = connection.execute(
-            "SELECT COUNT(*), "
-            "COALESCE(SUM(CASE WHEN result_count > 0 THEN 1 ELSE 0 END), 0), "
-            "COALESCE(SUM(result_count), 0) FROM memory_recall_events" + clause,
-            params,
-        ).fetchone()
-        metrics["recall_attempts"] = row[0]
-        metrics["recall_hits"] = row[1]
-        metrics["returned_memories"] = row[2]
+        rows = _windowed_rows(
+            connection, "memory_recall_events", ("result_count", "created_at"),
+            days, now,
+        )
+        metrics["recall_attempts"] = len(rows)
+        metrics["recall_hits"] = sum(1 for result_count, _ in rows if result_count > 0)
+        metrics["returned_memories"] = sum(result_count for result_count, _ in rows)
     if _table_exists(connection, "memory_feedback"):
-        clause, params = _window_clause("created_at", days, now)
-        rows = connection.execute(
-            "SELECT outcome, COUNT(*) FROM memory_feedback" + clause +
-            " GROUP BY outcome",
-            params,
-        ).fetchall()
-        outcomes = {row[0]: row[1] for row in rows}
+        rows = _windowed_rows(
+            connection, "memory_feedback", ("outcome", "created_at"), days, now,
+        )
+        outcomes = {}
+        for outcome, _ in rows:
+            outcomes[outcome] = outcomes.get(outcome, 0) + 1
         metrics["useful"] = outcomes.get("useful", 0)
         metrics["misleading"] = outcomes.get("misleading", 0)
     if _table_exists(connection, "memory_index"):
-        clause, params = _window_clause("created_at", days, now)
-        prefix = " WHERE" if not clause else " AND"
-        metrics["new_memories"] = connection.execute(
-            "SELECT COUNT(*) FROM memory_index" + clause +
-            prefix + " source_kind='markdown'",
-            params,
-        ).fetchone()[0]
+        rows = _windowed_rows(
+            connection, "memory_index", ("source_kind", "created_at"), days, now,
+        )
+        metrics["new_memories"] = sum(
+            1 for source_kind, _ in rows if source_kind == "markdown"
+        )
     attempts = metrics["recall_attempts"]
     metrics["hit_rate"] = metrics["recall_hits"] / attempts if attempts else 0.0
     metrics["unfeedback"] = max(
@@ -101,11 +138,14 @@ def _client_metrics(connection):
         ):
             add(client, "candidate_events", count)
     if _table_exists(connection, "memory_recall_events"):
-        for client, attempts, returned in connection.execute(
-            "SELECT client, COUNT(*), COALESCE(SUM(result_count), 0) "
+        for client, attempts, hits, returned in connection.execute(
+            "SELECT client, COUNT(*), "
+            "COALESCE(SUM(CASE WHEN result_count > 0 THEN 1 ELSE 0 END), 0), "
+            "COALESCE(SUM(result_count), 0) "
             "FROM memory_recall_events GROUP BY client"
         ):
             add(client, "recall_attempts", attempts)
+            add(client, "recall_hits", hits)
             add(client, "returned_memories", returned)
     if _table_exists(connection, "memory_feedback"):
         for client, outcome, count in connection.execute(
@@ -124,7 +164,50 @@ def _client_metrics(connection):
                 values = []
             for client in set(values or ["unknown"]):
                 add(client, "new_memories", 1)
+    total_attempts = sum(item["recall_attempts"] for item in clients.values())
+    for item in clients.values():
+        item["recall_share"] = (
+            item["recall_attempts"] / total_attempts if total_attempts else 0.0
+        )
     return clients
+
+
+def _empty_backlog():
+    return {
+        "reviewable_proposals": 0,
+        "provenance_events": 0,
+        "lifecycle_events": 0,
+        "other_pending": 0,
+        "total_pending": 0,
+        "pending": 0,
+        "oldest_pending_at": None,
+        "oldest_reviewable_at": None,
+    }
+
+
+def _backlog(connection):
+    result = _empty_backlog()
+    rows = connection.execute(
+        "SELECT event_type, created_at FROM candidate_events WHERE status='pending'"
+    ).fetchall()
+    reviewable_times = []
+    pending_times = []
+    for event_type, created_at in rows:
+        pending_times.append(created_at)
+        if event_type == "memory_proposal":
+            result["reviewable_proposals"] += 1
+            reviewable_times.append(created_at)
+        elif event_type in PROVENANCE_EVENT_TYPES:
+            result["provenance_events"] += 1
+        elif event_type in LIFECYCLE_EVENT_TYPES:
+            result["lifecycle_events"] += 1
+        else:
+            result["other_pending"] += 1
+    result["total_pending"] = len(rows)
+    result["pending"] = len(rows)
+    result["oldest_pending_at"] = min(pending_times) if pending_times else None
+    result["oldest_reviewable_at"] = min(reviewable_times) if reviewable_times else None
+    return result
 
 
 def _storage(config):
@@ -138,7 +221,7 @@ def _storage(config):
 
 
 def memory_value(config, now=None):
-    now = now or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now or datetime.now().astimezone().isoformat(timespec="seconds")
     payload = {
         "all_time": _metrics_without_connection(),
         "windows": {
@@ -149,7 +232,7 @@ def memory_value(config, now=None):
             name: {field: 0 for field in CLIENT_FIELDS}
             for name in ("codex", "claude", "hermes")
         },
-        "backlog": {"pending": 0, "oldest_pending_at": None},
+        "backlog": _empty_backlog(),
         "storage": _storage(config),
     }
     if not config.database_path.is_file():
@@ -162,13 +245,7 @@ def memory_value(config, now=None):
         payload["windows"]["30d"] = _metrics(connection, 30, now)
         payload["clients"] = _client_metrics(connection)
         if _table_exists(connection, "candidate_events"):
-            row = connection.execute(
-                "SELECT COUNT(*), MIN(created_at) FROM candidate_events "
-                "WHERE status='pending'"
-            ).fetchone()
-            payload["backlog"] = {
-                "pending": row[0], "oldest_pending_at": row[1]
-            }
+            payload["backlog"] = _backlog(connection)
         return payload
     finally:
         connection.close()

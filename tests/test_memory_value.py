@@ -96,8 +96,21 @@ def test_memory_value_aggregates_windows_clients_backlog_and_storage(tmp_path):
     assert payload["clients"]["hermes"]["misleading"] == 1
     assert payload["clients"]["claude"]["recall_attempts"] == 1
     assert payload["clients"]["codex"]["new_memories"] == 1
+    assert payload["clients"]["codex"]["recall_hits"] == 1
+    assert payload["clients"]["claude"]["recall_hits"] == 0
+    assert payload["clients"]["hermes"]["recall_hits"] == 1
+    assert payload["clients"]["codex"]["recall_share"] == 1 / 3
+    assert payload["clients"]["claude"]["recall_share"] == 1 / 3
+    assert payload["clients"]["hermes"]["recall_share"] == 1 / 3
     assert payload["backlog"] == {
-        "pending": 2, "oldest_pending_at": "2026-07-08 12:00:00"
+        "reviewable_proposals": 0,
+        "provenance_events": 2,
+        "lifecycle_events": 0,
+        "other_pending": 0,
+        "total_pending": 2,
+        "pending": 2,
+        "oldest_pending_at": "2026-07-08 12:00:00",
+        "oldest_reviewable_at": None,
     }
     assert payload["storage"]["database_bytes"] > 0
     assert payload["storage"]["backup_bytes"] == 6
@@ -111,4 +124,69 @@ def test_memory_value_returns_zeros_without_a_database(tmp_path):
 
     assert payload["all_time"]["recall_attempts"] == 0
     assert payload["clients"]["codex"]["candidate_events"] == 0
+    assert payload["clients"]["codex"]["recall_hits"] == 0
+    assert payload["clients"]["codex"]["recall_share"] == 0.0
     assert payload["backlog"]["oldest_pending_at"] is None
+
+
+def test_memory_value_windows_accept_iso_offsets_and_unix_seconds(tmp_path):
+    cfg = config(tmp_path)
+    store = UnifiedMemoryStore(cfg.database_path)
+    rows = [
+        ("iso-basic", "2026-07-10T12:00:00+0800"),
+        ("iso-colon", "2026-07-10T12:00:00+08:00"),
+        ("sqlite", "2026-07-10 04:00:00"),
+        ("unix", 1783656000),
+        ("old", "2026-05-01T12:00:00+0800"),
+        ("invalid", "not-a-time"),
+    ]
+    store.connection.executemany(
+        "INSERT INTO memory_index "
+        "(memory_id,type,status,summary,content_hash,clients,created_at,updated_at,source_kind) "
+        "VALUES (?, 'fact', 'active', ?, ?, '[\"codex\"]', ?, ?, 'markdown')",
+        [(name, name, name, created_at, created_at) for name, created_at in rows],
+    )
+    store.connection.commit()
+    store.close()
+
+    payload = memory_value(cfg, now="2026-07-11T12:00:00+0800")
+
+    assert payload["all_time"]["new_memories"] == 6
+    assert payload["windows"]["7d"]["new_memories"] == 4
+
+
+def test_memory_value_classifies_pending_events(tmp_path):
+    cfg = config(tmp_path)
+    queue = CandidateEventQueue(cfg.database_path)
+    event_types = [
+        "memory_proposal", "session_updated", "session_meta", "turn_context",
+        "SessionStart", "Stop", "SessionEnd", "session_closed", "task_complete",
+    ]
+    for index, event_type in enumerate(event_types):
+        queue.enqueue({
+            "event_id": "event-{}".format(index),
+            "client": "codex",
+            "event_type": event_type,
+        })
+    queue.connection.execute(
+        "UPDATE candidate_events SET created_at='2026-07-08 12:00:00'"
+    )
+    queue.connection.execute(
+        "UPDATE candidate_events SET created_at='2026-07-09 12:00:00' "
+        "WHERE event_type='memory_proposal'"
+    )
+    queue.connection.commit()
+    queue.connection.close()
+
+    backlog = memory_value(cfg, now="2026-07-11 12:00:00")["backlog"]
+
+    assert backlog == {
+        "reviewable_proposals": 1,
+        "provenance_events": 3,
+        "lifecycle_events": 4,
+        "other_pending": 1,
+        "total_pending": 9,
+        "pending": 9,
+        "oldest_pending_at": "2026-07-08 12:00:00",
+        "oldest_reviewable_at": "2026-07-09 12:00:00",
+    }

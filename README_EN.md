@@ -158,6 +158,12 @@ python3 dna.py memory maintain weekly --json
 python3 dna.py memory maintain monthly --json
 ```
 
+`memory value` separates reviewable `backlog.reviewable_proposals` from
+provenance and lifecycle events. `backlog.pending` is only a compatibility
+alias for `total_pending`; it is not the number of memories awaiting review.
+Per-client `recall_hits` and `recall_share` show active-recall adoption across
+Codex, Claude, and Hermes. Recall share is not a quality score.
+
 When a new verified fact invalidates an older one, pass exact old memory IDs in
 `supersedes`. Old Markdown remains available as history, while default recall
 returns active conclusions only. DNA Memory never infers replacement from type

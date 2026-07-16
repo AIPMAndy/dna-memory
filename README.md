@@ -189,6 +189,11 @@ python3 dna.py memory maintain weekly --json
 python3 dna.py memory maintain monthly --json
 ```
 
+`memory value` 将真正待审的 `backlog.reviewable_proposals` 与来源指针、
+生命周期事件分开统计。`backlog.pending` 只是 `total_pending` 的兼容别名，
+不能解释为待审记忆数量。`clients` 中的 `recall_hits` 和 `recall_share` 用于
+观察 Codex、Claude、Hermes 的主动召回采用情况；占比不代表召回质量。
+
 当新证据明确使旧结论失效时，调用 `memory_remember` 并显式传入旧 ID：
 
 ```json
