@@ -112,3 +112,29 @@ def test_memory_value_returns_zeros_without_a_database(tmp_path):
     assert payload["all_time"]["recall_attempts"] == 0
     assert payload["clients"]["codex"]["candidate_events"] == 0
     assert payload["backlog"]["oldest_pending_at"] is None
+
+
+def test_memory_value_windows_accept_iso_offsets_and_unix_seconds(tmp_path):
+    cfg = config(tmp_path)
+    store = UnifiedMemoryStore(cfg.database_path)
+    rows = [
+        ("iso-basic", "2026-07-10T12:00:00+0800"),
+        ("iso-colon", "2026-07-10T12:00:00+08:00"),
+        ("sqlite", "2026-07-10 04:00:00"),
+        ("unix", 1783656000),
+        ("old", "2026-05-01T12:00:00+0800"),
+        ("invalid", "not-a-time"),
+    ]
+    store.connection.executemany(
+        "INSERT INTO memory_index "
+        "(memory_id,type,status,summary,content_hash,clients,created_at,updated_at,source_kind) "
+        "VALUES (?, 'fact', 'active', ?, ?, '[\"codex\"]', ?, ?, 'markdown')",
+        [(name, name, name, created_at, created_at) for name, created_at in rows],
+    )
+    store.connection.commit()
+    store.close()
+
+    payload = memory_value(cfg, now="2026-07-11T12:00:00+0800")
+
+    assert payload["all_time"]["new_memories"] == 6
+    assert payload["windows"]["7d"]["new_memories"] == 4

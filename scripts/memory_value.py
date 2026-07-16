@@ -2,8 +2,9 @@
 """Privacy-bounded value metrics for the cross-client memory loop."""
 
 import json
+import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 
@@ -11,6 +12,8 @@ CLIENT_FIELDS = (
     "candidate_events", "recall_attempts", "returned_memories",
     "useful", "misleading", "new_memories",
 )
+
+OFFSET_WITHOUT_COLON = re.compile(r"([+-]\d{2})(\d{2})$")
 
 
 def _family(client):
@@ -30,14 +33,46 @@ def _table_exists(connection, table):
     ).fetchone() is not None
 
 
-def _window_clause(column, days, now):
+def _parse_timestamp(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.replace(".", "", 1).isdigit():
+            return datetime.fromtimestamp(float(text), timezone.utc)
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        text = OFFSET_WITHOUT_COLON.sub(r"\1:\2", text)
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _in_window(value, days, now):
     if days is None:
-        return "", ()
-    return (
-        " WHERE datetime({}) >= datetime(?, ?) "
-        "AND datetime({}) <= datetime(?)".format(column, column),
-        (now, "-{} days".format(days), now),
-    )
+        return True
+    created_at = _parse_timestamp(value)
+    current = _parse_timestamp(now)
+    if created_at is None or current is None:
+        return False
+    return current - timedelta(days=days) <= created_at <= current
+
+
+def _windowed_rows(connection, table, columns, days, now):
+    rows = connection.execute(
+        "SELECT {} FROM {}".format(", ".join(columns), table)
+    ).fetchall()
+    return [row for row in rows if _in_window(row[-1], days, now)]
 
 
 def _metrics(connection, days, now):
@@ -47,34 +82,29 @@ def _metrics(connection, days, now):
         "unfeedback": 0, "new_memories": 0,
     }
     if _table_exists(connection, "memory_recall_events"):
-        clause, params = _window_clause("created_at", days, now)
-        row = connection.execute(
-            "SELECT COUNT(*), "
-            "COALESCE(SUM(CASE WHEN result_count > 0 THEN 1 ELSE 0 END), 0), "
-            "COALESCE(SUM(result_count), 0) FROM memory_recall_events" + clause,
-            params,
-        ).fetchone()
-        metrics["recall_attempts"] = row[0]
-        metrics["recall_hits"] = row[1]
-        metrics["returned_memories"] = row[2]
+        rows = _windowed_rows(
+            connection, "memory_recall_events", ("result_count", "created_at"),
+            days, now,
+        )
+        metrics["recall_attempts"] = len(rows)
+        metrics["recall_hits"] = sum(1 for result_count, _ in rows if result_count > 0)
+        metrics["returned_memories"] = sum(result_count for result_count, _ in rows)
     if _table_exists(connection, "memory_feedback"):
-        clause, params = _window_clause("created_at", days, now)
-        rows = connection.execute(
-            "SELECT outcome, COUNT(*) FROM memory_feedback" + clause +
-            " GROUP BY outcome",
-            params,
-        ).fetchall()
-        outcomes = {row[0]: row[1] for row in rows}
+        rows = _windowed_rows(
+            connection, "memory_feedback", ("outcome", "created_at"), days, now,
+        )
+        outcomes = {}
+        for outcome, _ in rows:
+            outcomes[outcome] = outcomes.get(outcome, 0) + 1
         metrics["useful"] = outcomes.get("useful", 0)
         metrics["misleading"] = outcomes.get("misleading", 0)
     if _table_exists(connection, "memory_index"):
-        clause, params = _window_clause("created_at", days, now)
-        prefix = " WHERE" if not clause else " AND"
-        metrics["new_memories"] = connection.execute(
-            "SELECT COUNT(*) FROM memory_index" + clause +
-            prefix + " source_kind='markdown'",
-            params,
-        ).fetchone()[0]
+        rows = _windowed_rows(
+            connection, "memory_index", ("source_kind", "created_at"), days, now,
+        )
+        metrics["new_memories"] = sum(
+            1 for source_kind, _ in rows if source_kind == "markdown"
+        )
     attempts = metrics["recall_attempts"]
     metrics["hit_rate"] = metrics["recall_hits"] / attempts if attempts else 0.0
     metrics["unfeedback"] = max(
@@ -138,7 +168,7 @@ def _storage(config):
 
 
 def memory_value(config, now=None):
-    now = now or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now or datetime.now().astimezone().isoformat(timespec="seconds")
     payload = {
         "all_time": _metrics_without_connection(),
         "windows": {
