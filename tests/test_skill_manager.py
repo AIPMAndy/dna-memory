@@ -52,3 +52,21 @@ def test_sync_plan_never_overwrites_conflicts(tmp_path):
     assert actions[("shared-ok", "codex")] == "ok"
     assert actions[("shared-ok", "claude")] == "blocked_conflict"
     assert actions[("missing-target", "codex")] == "missing_source"
+
+
+def test_sync_plan_expands_platform_target_to_named_instances(tmp_path):
+    shared = tmp_path / "shared"
+    source = skill(shared, "memory-loop", "---\nname: memory-loop\n---\n")
+    roots = {
+        "hermes": tmp_path / "hermes-default",
+        "hermes:htian": tmp_path / "hermes-htian",
+        "codex": tmp_path / "codex",
+    }
+    registry = {"skills": {"memory-loop": {"targets": ["hermes"]}}}
+
+    plan = build_sync_plan(shared, roots, registry)
+
+    assert [(item.platform, item.action, item.source) for item in plan] == [
+        ("hermes", "create_link", str(source)),
+        ("hermes:htian", "create_link", str(source)),
+    ]

@@ -74,7 +74,16 @@ def build_sync_plan(shared_root: Path, platform_roots: Dict[str, Path], registry
     plan = []
     for name, settings in sorted(registry.get("skills", {}).items()):
         source = shared_root / name
-        for platform in settings.get("targets", []):
+        platforms = []
+        for target in settings.get("targets", []):
+            matches = [
+                platform for platform in platform_roots
+                if platform == target or platform.startswith(f"{target}:")
+            ]
+            for platform in matches or [target]:
+                if platform not in platforms:
+                    platforms.append(platform)
+        for platform in platforms:
             root = platform_roots.get(platform)
             target = (root / name) if root else Path("<unconfigured>") / name
             if root is None:
