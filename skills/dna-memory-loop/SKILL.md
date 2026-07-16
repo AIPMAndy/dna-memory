@@ -16,7 +16,10 @@ names an existing project or path, or depends on a durable preference, known err
 workflow, project state, or open loop.
 
 1. Extract one to four distinctive terms from the request, project, error, or expected result.
-2. Call `memory_recall` separately for each term. Include the real client and session ID when available.
+2. Call `memory_recall` separately for each term. Always pass the real client:
+   use `client=codex`, `client=claude-code`, or `client=hermes` for those runtimes.
+   Never invent client or session metadata. Pass the current stable session ID only
+   when the runtime exposes it; otherwise omit session_id instead of using a placeholder.
 3. Deduplicate by memory ID. Inject at most five memories and about 2,000 tokens total.
 4. Use only relevant results. Current files, processes, remote state, and tests override stale memory.
 

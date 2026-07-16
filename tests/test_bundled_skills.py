@@ -46,3 +46,12 @@ def test_memory_loop_requires_recall_for_history_dependent_work():
     assert "one to four distinctive terms" in body
     assert "simple, self-contained" in body
     assert "Memory failure must not block" in body
+
+
+def test_memory_loop_requires_truthful_client_metadata():
+    body = (ROOT / "skills/dna-memory-loop/SKILL.md").read_text(encoding="utf-8")
+
+    assert "client=hermes" in body
+    assert "Never invent client or session metadata" in body
+    assert "omit session_id" in body
+    assert "placeholder" in body

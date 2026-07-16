@@ -33,6 +33,15 @@ DNA Memory 将“长期记忆”和“行为 Skill”分开治理：
 Hermes 的目标目录必须链接到同一个 `skill_root` 真源。不要复制三份后分别
 修改，否则召回边界和隐私限制会随客户端漂移。
 
+`platform_skill_roots` 的键可以使用 `platform:instance`，例如
+`hermes:dev`。当注册表目标为 `hermes` 时，`skills sync` 会自动展开到
+所有已配置的 `hermes:*` 实例；新增 Hermes profile 后先登记其 Skill 根目录，
+再运行 `skills sync --apply`。不需要在注册表中重复列出每个 profile。
+
+Memory Loop 必须传真实客户端元数据：Hermes 使用 `client=hermes`。
+只有运行时明确暴露稳定会话 ID 时才传 `session_id`；否则省略，禁止使用
+`session_12345` 等占位值。
+
 对依赖历史的实质任务，Memory Loop 是强制前置步骤；“继续之前的工作”、
 “按上次方案”、已有项目路径、用户长期偏好、已知错误和开放事项都属于触发
 条件。翻译、当前时间、一步格式化等完全自包含任务仍然跳过召回。
