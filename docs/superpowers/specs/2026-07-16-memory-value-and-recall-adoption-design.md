@@ -144,7 +144,7 @@ DNA Memory 已能从 Codex、Claude Code、Claude Desktop 和 Hermes 捕获有�
 
 ### 8.3 单一 Skill 真源
 
-本机部署的 `andy-memory-loop` 以用户级共享 Agent Skills 目录为唯一真源。公开仓库继续使用不含个人命名的 `dna-memory-loop` 作为可分发模板；部署时由用户配置的 Skill 注册表决定实际受管名称。各客户端采用引用或受管安装，不维护手工分叉副本：
+本机部署的 `dna-memory-loop` 以用户级共享 Agent Skills 目录为唯一真源。部署时由用户配置的 Skill 注册表决定实际受管名称。各客户端采用引用或受管安装，不维护手工分叉副本：
 
 - Codex：从共享 Skills 目录发现 Skill，并由全局指令要求实质任务使用。
 - Claude Code：从共享 Skills 目录发现 Skill，并由全局 `CLAUDE.md` 明确“必须召回”的触发边界。

@@ -4,7 +4,7 @@
 
 **Goal:** 修正 DNA Memory 的时间窗口、backlog 和客户端采用率指标，并让共享 Memory Loop Skill 明确要求 Claude、Codex 与 Hermes 在历史相关任务前执行有界召回。
 
-**Architecture:** 在 `scripts/memory_value.py` 内增加独立的时间规范化、backlog 分类和客户端采用率聚合函数，保持数据库只读且不迁移已有记录。行为侧复用现有 `dna skills sync` 单一真源分发机制，只强化已有 `dna-memory-loop` 的触发契约；本机部署继续使用受管的 `andy-memory-loop` 名称。
+**Architecture:** 在 `scripts/memory_value.py` 内增加独立的时间规范化、backlog 分类和客户端采用率聚合函数，保持数据库只读且不迁移已有记录。行为侧复用现有 `dna skills sync` 单一真源分发机制，只强化已有 `dna-memory-loop` 的触发契约。
 
 **Tech Stack:** Python 3 标准库、SQLite、PyYAML、pytest、Agent Skills、MCP、GitHub CLI。
 
@@ -450,8 +450,7 @@ clients.codex.recall_share / clients.claude.recall_share / clients.hermes.recall
 Run:
 
 ```bash
-rg -n '/Users/|mem_[0-9a-f]{8}|session[_-]?id.{0,20}[0-9a-f]{8}' \
-  README.md README_EN.md docs skills scripts tests
+python3 scripts/check_public_safety.py
 ```
 
 Expected: 无本次新增的个人绝对路径、真实记忆 ID 或真实会话 ID。
@@ -540,14 +539,14 @@ git diff 320b751..HEAD -- \
 
 - [ ] **Step 6: 强化本机单一 Skill 真源并同步三端**
 
-在用户级共享 `andy-memory-loop/SKILL.md` 写入与公开 Skill 等价的 MUST 触发段，然后运行：
+在用户级共享 `dna-memory-loop/SKILL.md` 写入公开 Skill 的 MUST 触发段，然后运行：
 
 ```bash
 python3 dna.py skills sync --apply --json
 python3 dna.py skills doctor --json
 ```
 
-Expected: Codex、Claude、Hermes 的 `andy-memory-loop` 均指向同一共享真源，无 conflict 或 broken link。
+Expected: Codex、Claude、Hermes 的 `dna-memory-loop` 均指向同一共享真源，无 conflict 或 broken link。
 
 - [ ] **Step 7: 运行 live 价值核对**
 
@@ -573,7 +572,7 @@ Expected: 会话实际调用 `memory_recall`，数据库新增 `client` 属于 C
 - [ ] **Step 9: 新会话验证 Hermes 及子 Agent 可发现性**
 
 ```bash
-hermes skills list --source local --enabled-only | rg 'andy-memory-loop'
+hermes skills list --source local --enabled-only | rg 'dna-memory-loop'
 hermes -z "继续之前的 DNA Memory 价值统计工作。先恢复相关历史，再只报告你使用了哪些记忆。"
 ```
 
