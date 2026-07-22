@@ -37,8 +37,50 @@ def test_source_hash_is_idempotent(tmp_path):
     first = svc.remember(proposal)
     second = svc.remember(proposal)
     assert second == {
-        "created": False, "memory_id": first["memory_id"], "superseded": [],
+        "created": False, "deduplicated": True,
+        "memory_id": first["memory_id"], "superseded": [],
     }
+
+
+def test_normalized_active_summary_deduplicates_and_merges_provenance(tmp_path):
+    svc = service(tmp_path)
+    first = svc.remember({
+        "type": "fact",
+        "summary": "飞书表格入口已可直接打开",
+        "source_refs": ["codex://session/one"],
+        "clients": ["codex"],
+    })
+
+    second = svc.remember({
+        "type": "fact",
+        "summary": "  飞书表格入口已可直接打开  ",
+        "source_refs": ["hermes://session/two"],
+        "clients": ["hermes"],
+    })
+
+    assert second == {
+        "created": False, "deduplicated": True,
+        "memory_id": first["memory_id"], "superseded": [],
+    }
+    record = svc.get(first["memory_id"])
+    assert record["source_refs"] == ["codex://session/one", "hermes://session/two"]
+    assert record["clients"] == ["codex", "hermes"]
+    assert len(list((tmp_path / "vault/00 System/Memory").glob("*.md"))) == 1
+
+
+def test_deduplication_is_scoped_to_type_and_active_status(tmp_path):
+    svc = service(tmp_path)
+    fact = svc.remember({"type": "fact", "summary": "same scoped conclusion"})
+    decision = svc.remember({"type": "decision", "summary": "same scoped conclusion"})
+
+    assert decision["created"] is True
+    svc.store.connection.execute(
+        "UPDATE memory_index SET status='superseded' WHERE memory_id=?",
+        (fact["memory_id"],),
+    )
+    svc.store.connection.commit()
+    replacement = svc.remember({"type": "fact", "summary": "same scoped conclusion"})
+    assert replacement["created"] is True
 
 
 def test_sensitive_proposal_is_rejected(tmp_path):
@@ -170,7 +212,8 @@ def test_source_hash_idempotency_does_not_repeat_supersede(tmp_path):
 
     assert first["superseded"] == [old["memory_id"]]
     assert second == {
-        "created": False, "memory_id": first["memory_id"], "superseded": [],
+        "created": False, "deduplicated": True,
+        "memory_id": first["memory_id"], "superseded": [],
     }
     assert old_path.read_text() == after_first
 

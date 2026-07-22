@@ -20,7 +20,7 @@ class MemoryOperations:
         queue = CandidateEventQueue(self.config.database_path, self.config.max_candidate_events)
         result = {
             "crystallized": 0, "rejected": 0, "compacted": 0,
-            "expired": 0, "deleted": 0,
+            "deduplicated": 0, "expired": 0, "deleted": 0,
         }
         try:
             proposals = queue.connection.execute("""
@@ -52,12 +52,13 @@ class MemoryOperations:
                         "clients": [client], "project_path": project_path,
                         "session_id": session_id,
                     })
+                    status = "deduplicated" if remembered.get("deduplicated") else "crystallized"
                     queue.connection.execute(
-                        "UPDATE candidate_events SET status='crystallized', processed_at=?, memory_id=?, error=NULL WHERE event_id=?",
-                        (now, remembered["memory_id"], event_id),
+                        "UPDATE candidate_events SET status=?, processed_at=?, memory_id=?, error=NULL WHERE event_id=?",
+                        (status, now, remembered["memory_id"], event_id),
                     )
                     queue.connection.commit()
-                    result["crystallized"] += 1
+                    result[status] += 1
             finally:
                 service.store.close()
 
@@ -85,7 +86,7 @@ class MemoryOperations:
             result["expired"] = cursor.rowcount
             cursor = queue.connection.execute("""
                 DELETE FROM candidate_events
-                WHERE status IN ('crystallized', 'rejected', 'superseded', 'expired')
+                WHERE status IN ('crystallized', 'deduplicated', 'rejected', 'superseded', 'expired')
                   AND datetime(COALESCE(processed_at, created_at)) < datetime(?, '-7 days')
             """, (now,))
             result["deleted"] = cursor.rowcount

@@ -90,7 +90,7 @@ def test_memory_maintain_daily_outputs_bounded_json(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
 
     assert payload == {
-        "compacted": 0, "crystallized": 0, "deleted": 0,
+        "compacted": 0, "crystallized": 0, "deduplicated": 0, "deleted": 0,
         "expired": 0, "rejected": 0,
     }
 

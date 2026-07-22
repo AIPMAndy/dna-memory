@@ -38,6 +38,7 @@ def test_only_reviewed_safe_proposals_crystallize(tmp_path):
     result = MemoryOperations(config).daily(now="2026-07-11 12:00:00")
 
     assert result["crystallized"] == 1
+    assert result["deduplicated"] == 0
     assert result["rejected"] == 0
     rows = queue.connection.execute(
         "SELECT event_id, status, memory_id FROM candidate_events ORDER BY event_id"
@@ -90,6 +91,7 @@ def test_daily_rejects_invalid_then_crystallizes_valid_without_locking(tmp_path)
 
     assert result["rejected"] == 1
     assert result["crystallized"] == 1
+    assert result["deduplicated"] == 0
     rows = dict(queue.connection.execute(
         "SELECT event_id, status FROM candidate_events ORDER BY event_id"
     ).fetchall())
@@ -97,6 +99,30 @@ def test_daily_rejects_invalid_then_crystallizes_valid_without_locking(tmp_path)
     pages = list((config.knowledge_root / config.managed_memory_dir).glob("*.md"))
     assert len(pages) == 1
     assert "同批次的有效记忆" in pages[0].read_text()
+
+
+def test_daily_marks_cross_session_duplicate_as_deduplicated(tmp_path):
+    config = _profile(tmp_path)
+    queue = CandidateEventQueue(config.database_path)
+    for event_id, client, source_ref in (
+        ("proposal-a", "codex", "codex://session/a"),
+        ("proposal-b", "hermes", "hermes://session/b"),
+    ):
+        queue.enqueue({
+            "event_id": event_id, "client": client,
+            "event_type": "memory_proposal", "memory_type": "fact",
+            "excerpt": "metaver.vip 当前返回 200",
+            "source_ref": source_ref, "source_hash": "source-" + event_id,
+        })
+
+    result = MemoryOperations(config).daily(now="2026-07-12 12:00:00")
+
+    assert result["crystallized"] == 1
+    assert result["deduplicated"] == 1
+    rows = dict(queue.connection.execute(
+        "SELECT event_id, status FROM candidate_events ORDER BY event_id"
+    ).fetchall())
+    assert rows == {"proposal-a": "crystallized", "proposal-b": "deduplicated"}
 
 
 def test_retention_expires_pointers_and_deletes_terminal_events(tmp_path):
