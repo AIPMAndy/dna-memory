@@ -321,6 +321,10 @@ def test_type_specific_negative_cases_are_rejected(role, content):
     "若下周一 Kimi WebBridge 仍未恢复，再提交反馈。",
     "Codex 文档已完成初稿，当前正在做最后核验。",
     "rollout_summaries/2026-01-01-example.md:10-12|note=[verified image blocker]",
+    "请你先把 Gemini Pro 会员的截图复制到剪切板，告诉我已复制，再继续插入。",
+    "我会把 01-06 做成一个完整合集，后面再统一发布。",
+    "接下来我将把这批素材整理成一个完整合集。",
+    "好了，公开版本已完成发布：",
 ])
 def test_rejects_real_backtest_false_positive_shapes(content):
     assert extract_automatic_proposals([

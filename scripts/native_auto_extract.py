@@ -100,6 +100,19 @@ _COMMAND_PREFACE = re.compile(
     r"^(?:但)?你可以直接执行下面",
     re.IGNORECASE,
 )
+_ACTION_HANDOFF = re.compile(
+    r"^(?:请你先|告诉我(?:已|已经)|复制到剪切板|复制到剪贴板|"
+    r"再继续(?:插入|执行)|等你(?:确认|回复)|等待你)",
+    re.IGNORECASE,
+)
+_PLANNING_NARRATION = re.compile(
+    r"^(?:我会把|我将把|接下来我(?:将|会)|正在(?:把|将|整理|制作|进行))",
+    re.IGNORECASE,
+)
+_UNSUBSTANTIVE_COMPLETION = re.compile(
+    r"^(?:好了[，,]?\s*)?公开版本已完成发布[：:]?$",
+    re.IGNORECASE,
+)
 _GENERIC_COMPLETION = re.compile(
     r"^(?:Markdown\s+格式转换|(?:所有|全部).{0,30}(?:文档|文件)|"
     r"(?:不过)?其他.{0,20}功能|好的[，,]?\s*子agent).{0,50}"
@@ -290,6 +303,8 @@ def extract_automatic_proposals(messages, max_proposals=DEFAULT_MAX_PROPOSALS):
                     or _IN_PROGRESS_NARRATION.search(text) or _COMMAND_PREFACE.search(text)
                     or _GENERIC_COMPLETION.search(text) or _RESOURCE_STATUS.search(text)
                     or _UNVERIFIED_PROMOTIONAL.search(text)
+                    or _ACTION_HANDOFF.search(text) or _PLANNING_NARRATION.search(text)
+                    or _UNSUBSTANTIVE_COMPLETION.search(text)
                     or not inspect_content(text).allowed):
                 continue
             if message.get("role") == "assistant" and _VAGUE_ASSISTANT.match(text):

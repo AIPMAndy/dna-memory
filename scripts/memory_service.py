@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 import shutil
+import unicodedata
 from pathlib import Path
 
 import yaml
@@ -40,10 +41,23 @@ class MemoryService:
         source_hash = proposal.get("source_hash")
         if source_hash:
             row = self.store.connection.execute(
-                "SELECT memory_id FROM memory_index WHERE source_hash=?", (source_hash,)
+                "SELECT memory_id FROM memory_index "
+                "WHERE source_hash=? AND status='active' AND source_kind='markdown'",
+                (source_hash,),
             ).fetchone()
             if row:
-                return {"created": False, "memory_id": row[0], "superseded": []}
+                return {
+                    "created": False, "deduplicated": True,
+                    "memory_id": row[0], "superseded": [],
+                }
+        normalized_summary = self._normalize_summary(summary)
+        duplicate = self._find_active_duplicate(mem_type, normalized_summary)
+        if duplicate:
+            self._merge_duplicate_provenance(duplicate, proposal)
+            return {
+                "created": False, "deduplicated": True,
+                "memory_id": duplicate["memory_id"], "superseded": [],
+            }
         supersedes = self._normalize_supersedes(proposal.get("supersedes"))
         root = self.config.knowledge_root / self.config.managed_memory_dir
         targets = self._load_active_targets(supersedes, root)
@@ -79,6 +93,55 @@ class MemoryService:
             "created": True, "memory_id": memory_id, "path": str(path),
             "superseded": supersedes,
         }
+
+    @staticmethod
+    def _normalize_summary(summary):
+        """Normalize only exact textual duplicates; never use fuzzy similarity."""
+        normalized = unicodedata.normalize("NFKC", str(summary or ""))
+        return re.sub(r"\s+", " ", normalized).strip().casefold()
+
+    def _find_active_duplicate(self, mem_type, normalized_summary):
+        rows = self.store.connection.execute(
+            "SELECT memory_id, markdown_path, summary FROM memory_index "
+            "WHERE source_kind='markdown' AND status='active' AND type=?",
+            (mem_type,),
+        ).fetchall()
+        for row in rows:
+            if self._normalize_summary(row["summary"]) == normalized_summary:
+                return row
+        return None
+
+    @staticmethod
+    def _merge_unique(existing, incoming):
+        values = []
+        for collection in (existing, incoming):
+            if not isinstance(collection, list):
+                continue
+            for value in collection:
+                if value not in values:
+                    values.append(value)
+        return values
+
+    def _merge_duplicate_provenance(self, duplicate, proposal):
+        root = self.config.knowledge_root / self.config.managed_memory_dir
+        targets = self._load_active_targets([duplicate["memory_id"]], root)
+        target = targets[0]
+        meta = dict(target["meta"])
+        meta["source_refs"] = self._merge_unique(
+            meta.get("source_refs", []), proposal.get("source_refs", [])
+        )
+        meta["clients"] = self._merge_unique(
+            meta.get("clients", []), proposal.get("clients", [])
+        )
+        now = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        meta["updated"] = now
+        if proposal.get("project_path") and not meta.get("project_path"):
+            meta["project_path"] = proposal["project_path"]
+        if proposal.get("session_id") and not meta.get("session_id"):
+            meta["session_id"] = proposal["session_id"]
+        self._install_memory_files({
+            target["path"]: self._render_memory(meta, target["body"]),
+        })
 
     @staticmethod
     def _normalize_supersedes(value):

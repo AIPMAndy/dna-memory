@@ -12,12 +12,15 @@ All notable changes to this project will be documented in this file.
 - 跨客户端共享 Skill 清单、诊断和安全同步
 - 通用 `dna-memory-loop` Skill
 - CI 测试、编译和公开敏感信息扫描
+- 跨会话精确去重：同类型且规范化摘要相同的 active 记忆只保留一条，并合并来源与客户端
+- daily 维护的 `deduplicated` 指标，区分新认知结晶与重复候选
 
 ### Changed
 - README、快速上手和客户端文档改为当前跨端用法
 - 本机 profile、运行配置和记忆数据全部迁出 Git 仓库
 - macOS 自动化标识和示例路径改为通用命名
 - 旧 Claude 同步脚本不再包含固定用户或项目路径
+- 自动提取过滤操作交接、计划性叙述和无主体发布话术，减少过程话术结晶
 
 ### Removed
 - 私人 Skill、个人部署计划、真实 vault 名称和运行时记忆样例

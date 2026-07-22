@@ -194,6 +194,11 @@ python3 dna.py memory maintain monthly --json
 不能解释为待审记忆数量。`clients` 中的 `recall_hits` 和 `recall_share` 用于
 观察 Codex、Claude、Hermes 的主动召回采用情况；占比不代表召回质量。
 
+daily 维护结果中的 `crystallized` 表示新建长期认知，`deduplicated` 表示候选
+已命中同类型、同规范化摘要的 active 记忆。重复候选不会创建第二份 Markdown；
+其新的来源和客户端会合并到既有记忆的 provenance 字段中。系统只做精确文本去重，
+不使用模糊相似度自动合并不同结论。
+
 当新证据明确使旧结论失效时，调用 `memory_remember` 并显式传入旧 ID：
 
 ```json

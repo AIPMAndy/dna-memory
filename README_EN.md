@@ -164,6 +164,13 @@ alias for `total_pending`; it is not the number of memories awaiting review.
 Per-client `recall_hits` and `recall_share` show active-recall adoption across
 Codex, Claude, and Hermes. Recall share is not a quality score.
 
+In daily maintenance results, `crystallized` counts newly created durable
+memories and `deduplicated` counts candidates that matched an active memory
+with the same type and normalized summary. Duplicate candidates do not create
+another Markdown page; their new sources and clients are merged into the
+existing provenance fields. Deduplication is exact after normalization, not a
+fuzzy similarity merge.
+
 When a new verified fact invalidates an older one, pass exact old memory IDs in
 `supersedes`. Old Markdown remains available as history, while default recall
 returns active conclusions only. DNA Memory never infers replacement from type
