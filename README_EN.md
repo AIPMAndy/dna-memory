@@ -34,6 +34,35 @@ It is not another indefinitely growing chat database. Native conversations are
 source material; only conclusions that have been filtered, verified, and are
 worth reusing in future work become durable memory.
 
+## Core Strategy: Process Memory Before Storing It
+
+DNA Memory is not designed to push more conversation into a database. Its core
+is a policy loop that gives an agent a human-memory-inspired way to process
+experience. Conversations are treated as raw perceptual input; only signals
+that pass the policy gates can become reusable long-term cognition:
+
+1. **Bound perception**: read bounded sources and necessary lifecycle metadata,
+   not complete transcripts as durable memory.
+2. **Filter signals**: remove operational talk, transient status, credentials,
+   and conclusions that cannot be reused.
+3. **Weight evidence**: combine importance, confidence, provenance, and later
+   usage feedback to decide whether a signal is worth keeping.
+4. **Classify cognition**: map signals to preferences, facts, insights,
+   decisions, project state, open loops, workflows, and error lessons.
+5. **Crystallize after verification**: write only safe, short, traceable,
+   verified conclusions to the Markdown truth store.
+6. **Recall and learn from feedback**: recall before context-dependent tasks;
+   record `useful` or `misleading` only when the result actually affected work.
+7. **Evolve and forget**: exact duplicates are collapsed, invalidated cognition
+   is replaced through explicit `supersedes`, and stale pointers are retained
+   only according to bounded retention rules.
+
+This is an engineering strategy inspired by cognitive processes, not a claim
+to reproduce the human brain. The goal is a repeatable
+“filter-weight-abstract-verify-recall-correct” loop, rather than an ever-growing
+chat archive. DNA Memory should be evaluated by whether high-quality cognition
+is reused correctly, not by how much text it stores.
+
 ```text
 raw conversations
   -> bounded collection and signal extraction
