@@ -12,6 +12,10 @@
 
 </div>
 
+**想给 Claude Code、Codex 加长期记忆？** DNA Memory 是一个本地优先的 AI Agent 记忆 MCP。一个 Markdown / Obsidian 目录当长期记忆，Codex、Claude Code、Claude Desktop、Hermes 通过同一个 MCP 服务读写，不用每个工具各记一套。
+
+*English: a local-first memory MCP server that gives Claude Code, Codex, Claude Desktop and Hermes one shared long-term memory in Markdown.*
+
 > **适合谁**：同时用 Codex、Claude Code、Claude Desktop 或 Hermes，受够了每个工具各记一套、互相打架的人。
 > 一个 Markdown / Obsidian 目录当长期记忆，所有客户端通过同一个 MCP 服务读写。[快速上手 →](./QUICKSTART.md)
 
@@ -308,11 +312,52 @@ python3 scripts/check_public_safety.py
 git diff --check
 ```
 
-## 作者
+## 常见问题 FAQ
 
-**AI 酋长 Andy**，前腾讯 / 百度 AI 产品专家、大模型独角兽 VP。也写了 [AndySoul](https://github.com/AIPMAndy/AndySoul)（AI 编码 Agent 规则文件）和 [Grok Bot 中文攻略](https://aipmandy.github.io/grok-bot-handbook/)。
+### Claude Code 怎么加长期记忆？
 
-交流 Agent 记忆和落地：微信 **`AIPMAndy`**（备注「DNA Memory」）· [X @AIPMAndy](https://x.com/AIPMAndy) · [个人官网](https://metaver.vip/)
+按上面的步骤装好 DNA Memory，再用 `claude mcp add --scope user dna-memory` 把它接成 MCP 服务，最后用 `claude mcp get dna-memory` 检查是否接好。记忆存在你自己的 Markdown / Obsidian 目录里。
+
+### 它和其他 AI Agent 记忆 MCP 有什么不同？
+
+Codex、Claude Code、Hermes 共用同一个 MCP 服务和同一份 Markdown 记忆。它只写入短小、验证过的结论，完整会话仍然留在原来的客户端里。
+
+### 记忆存在哪里，会上传吗？
+
+Markdown 目录是长期真源，SQLite 只是可以删除、可以重建的索引，都放在你自己的电脑上。
+
+### 会不会把密钥写进记忆？
+
+不会。凭证、私钥、常见 token 和疑似敏感内容会被拒绝写入。
+
+### 支持哪些客户端？
+
+Codex、Claude Code、Claude Desktop 和 Hermes，记忆目录可以直接用 Obsidian 打开。Claude Desktop 用 `mcpServers` 配置，JSON 里必须写绝对路径。
+
+### 有哪些 MCP 工具？
+
+`memory_recall`、`memory_get`、`memory_remember`、`memory_feedback`、`memory_close_session`、`memory_status`、`memory_reindex`，一共 7 个，用途见上面的 [MCP 工具](#mcp-工具) 表。
+
+<!-- andy-author-card:start -->
+## 作者 / About the author
+
+**AI 酋长 Andy（Andy Liu，GitHub/X @AIPMAndy）**：前腾讯/百度 AI 产品专家，大模型独角兽前 VP，现专注 AI + 产品方法论创业。
+
+可以找我聊求职咨询、AI 增长和副业陪跑，服务范围和费用先沟通确认。
+
+微信 `AIPMAndy`（备注「DNA Memory」）· [X @AIPMAndy](https://x.com/AIPMAndy) · [Telegram @AIPMAndy](https://t.me/AIPMAndy) · [个人官网 metaver.vip](https://metaver.vip/) · [Grok Bot 中文攻略](https://aipmandy.github.io/grok-bot-handbook/)
+
+*AI Chief Andy (Andy Liu, @AIPMAndy on GitHub and X) is a former Tencent and Baidu AI product expert and former VP at an LLM unicorn, now a serial entrepreneur focused on AI and product methodology.*
+
+### 作者的其他项目
+
+- [AndySoul](https://github.com/AIPMAndy/AndySoul)：CLAUDE.md / AGENTS.md 规则模板，让 Claude Code、Codex、Cursor 少犯错
+- [goskill](https://github.com/AIPMAndy/goskill)：长任务执行助手：先定成功标准，再按标准验收
+- [Grok Bot 中文攻略](https://github.com/AIPMAndy/grok-bot-handbook)：Grok Bot / AI Agent 中文教程，26 章加 40 套任务指令
+- [OpenClaw Skills 中文精选](https://github.com/AIPMAndy/awesome-openclaw-skills-CN)：2868 个 OpenClaw Skills 分类整理，附国产模型接入指南
+- [FreeToken](https://github.com/AIPMAndy/FreeToken)：免费 AI API、免费大模型 API 额度合集
+
+<!-- andy-author-card:end -->
 
 ## License
 
