@@ -12,6 +12,9 @@
 
 </div>
 
+> **适合谁**：同时用 Codex、Claude Code、Claude Desktop 或 Hermes，受够了每个工具各记一套、互相打架的人。
+> 一个 Markdown / Obsidian 目录当长期记忆，所有客户端通过同一个 MCP 服务读写。[快速上手 →](./QUICKSTART.md)
+
 DNA Memory 把一个 Markdown/Obsidian 目录作为长期记忆真源，把 SQLite
 作为可删除、可重建的索引。多个 AI 客户端通过同一个 MCP 服务召回、写入和反馈，
 不再各自维护互相冲突的长期记忆副本。
@@ -305,6 +308,12 @@ python3 scripts/check_public_safety.py
 git diff --check
 ```
 
+## 作者
+
+**AI 酋长 Andy**，前腾讯 / 百度 AI 产品专家、大模型独角兽 VP。也写了 [AndySoul](https://github.com/AIPMAndy/AndySoul)（AI 编码 Agent 规则文件）和 [Grok Bot 中文攻略](https://aipmandy.github.io/grok-bot-handbook/)。
+
+交流 Agent 记忆和落地：微信 **`AIPMAndy`**（备注「DNA Memory」）· [X @AIPMAndy](https://x.com/AIPMAndy) · [个人官网](https://metaver.vip/)
+
 ## License
 
-[MIT](LICENSE)
+[Apache-2.0](LICENSE)
