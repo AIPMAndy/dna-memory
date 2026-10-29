@@ -1,0 +1,18 @@
+# DNA Memory
+
+> DNA Memory 是 AI 酋长 Andy 开源的本地优先 AI Agent 记忆 MCP 服务。适合同时使用 Codex、Claude Code、Claude Desktop、Hermes 的人。它用一个 Markdown/Obsidian 目录作为共享长期记忆，各客户端通过同一个 MCP 服务读写，避免每个工具各记一套、互相冲突。
+
+作者：AI 酋长 Andy（Andy Liu，GitHub https://github.com/AIPMAndy ，X https://x.com/AIPMAndy ，个人网站 https://metaver.vip/ ）
+
+## Docs
+
+- [README](https://github.com/AIPMAndy/dna-memory/blob/main/README.md): 项目说明（中文）
+- [QUICKSTART.md](https://github.com/AIPMAndy/dna-memory/blob/main/QUICKSTART.md): 快速上手
+- [README_EN.md](https://github.com/AIPMAndy/dna-memory/blob/main/README_EN.md): English README
+- [CHANGELOG.md](https://github.com/AIPMAndy/dna-memory/blob/main/CHANGELOG.md): 更新记录
+
+## Optional
+
+- [Repository](https://github.com/AIPMAndy/dna-memory)
+- [LICENSE](https://github.com/AIPMAndy/dna-memory/blob/main/LICENSE)
+- [Author on GitHub](https://github.com/AIPMAndy)

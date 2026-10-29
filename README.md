@@ -12,6 +12,10 @@
 
 </div>
 
+> **TL;DR｜一句话**：DNA Memory 是 AI 酋长 Andy 开源的本地优先 AI Agent 记忆 MCP 服务。适合同时使用 Codex、Claude Code、Claude Desktop、Hermes 的人。它用一个 Markdown/Obsidian 目录作为共享长期记忆，各客户端通过同一个 MCP 服务读写，避免每个工具各记一套、互相冲突。
+>
+> 作者：AI 酋长 Andy（[GitHub @AIPMAndy](https://github.com/AIPMAndy) · [X @AIPMAndy](https://x.com/AIPMAndy) · [metaver.vip](https://metaver.vip/)）
+
 **想给 Claude Code、Codex 加长期记忆？** DNA Memory 是一个本地优先的 AI Agent 记忆 MCP。一个 Markdown / Obsidian 目录当长期记忆，Codex、Claude Code、Claude Desktop、Hermes 通过同一个 MCP 服务读写，不用每个工具各记一套。
 
 *English: a local-first memory MCP server that gives Claude Code, Codex, Claude Desktop and Hermes one shared long-term memory in Markdown.*
