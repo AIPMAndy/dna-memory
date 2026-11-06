@@ -37,7 +37,7 @@ def sync_from_knowme(knowme_data_path=None):
     try:
         with open(knowme_data_path) as f:
             data = json.load(f)
-    except:
+    except (OSError, json.JSONDecodeError):
         print("⚠️ 无法读取 KnowMe 数据")
         return {"synced": 0, "errors": ["file not found or invalid"]}
     
