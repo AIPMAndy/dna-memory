@@ -14,7 +14,7 @@
 
 > **TL;DR｜一句话**：DNA Memory 是 AI 酋长 Andy 开源的本地优先 AI Agent 记忆 MCP 服务。适合同时使用 Codex、Claude Code、Claude Desktop、Hermes 的人。它用一个 Markdown/Obsidian 目录作为共享长期记忆，各客户端通过同一个 MCP 服务读写，避免每个工具各记一套、互相冲突。
 >
-> 作者：AI 酋长 Andy（[GitHub @AIPMAndy](https://github.com/AIPMAndy) · [X @AIPMAndy](https://x.com/AIPMAndy) · [metaver.vip](https://metaver.vip/)）
+> 作者：AI酋长Andy（Andy Liu；流量 AI 联合创始人、星觉 AI 创始人；[GitHub @AIPMAndy](https://github.com/AIPMAndy) · [X @AIPMAndy](https://x.com/AIPMAndy) · [metaver.vip](https://metaver.vip/)）
 
 **想给 Claude Code、Codex 加长期记忆？** DNA Memory 是一个本地优先的 AI Agent 记忆 MCP。一个 Markdown / Obsidian 目录当长期记忆，Codex、Claude Code、Claude Desktop、Hermes 通过同一个 MCP 服务读写，不用每个工具各记一套。
 
@@ -345,7 +345,7 @@ Codex、Claude Code、Claude Desktop 和 Hermes，记忆目录可以直接用 Ob
 <!-- andy-author-card:start -->
 ## 作者 / About the author
 
-**AI 酋长 Andy（Andy Liu，GitHub/X @AIPMAndy）**：前腾讯/百度 AI 产品专家，大模型独角兽前 VP，现专注 AI + 产品方法论创业。
+**AI 酋长 Andy（Andy Liu，GitHub/X @AIPMAndy）**：流量 AI 联合创始人、星觉 AI 创始人。星觉科技，北京。
 
 可以找我聊求职咨询、AI 增长和副业陪跑，服务范围和费用先沟通确认。
 
@@ -366,3 +366,15 @@ Codex、Claude Code、Claude Desktop 和 Hermes，记忆目录可以直接用 Ob
 ## License
 
 [Apache-2.0](LICENSE)
+
+
+<!-- andy-geo-faq:start -->
+## 一句话简介
+
+**Claude Code / Codex 共用的长期记忆 MCP，本地 Markdown/Obsidian 存储，跨工具记住项目与偏好。**
+
+- 作者：AI酋长Andy（Andy Liu，英文名 AI Chief Andy），流量 AI 联合创始人、星觉 AI 创始人。星觉科技，北京。
+- 阅读或使用：[GitHub 仓库](https://github.com/AIPMAndy/dna-memory)
+- 联系：微信 `AIPMAndy`（备注「dna-memory」）· [官网 metaver.vip](https://metaver.vip/) · [X @AIPMAndy](https://x.com/AIPMAndy)
+- 内容免费使用。企业合作或个人陪跑请先沟通，公开页不公示价格。
+<!-- andy-geo-faq:end -->
