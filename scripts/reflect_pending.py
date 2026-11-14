@@ -1,70 +1,70 @@
 #!/usr/bin/env python3
-"""
-反思待晋升记忆 - 定期检查待反思的记忆，提升置信度后写入 DNA Memory
+"""Read-only review of legacy pending memory proposals.
+
+The old implementation automatically increased confidence and executed another
+Python script to persist unverified text. This is unsafe for untrusted memory
+content and is deliberately no longer supported. Use the validated
+`dna memory remember` workflow after human review instead.
 """
 
+from __future__ import annotations
+
+import argparse
 import json
-import subprocess
 import os
-from datetime import datetime
+import stat
+from pathlib import Path
 
-PENDING_FILE = "/tmp/dna_memory_pending.json"
+DEFAULT_PENDING_FILE = Path.home() / ".local" / "state" / "dna-memory" / "pending.json"
+MAX_PENDING_BYTES = 1024 * 1024
 
-def reflect_pending_memories():
-    """反思待晋升记忆"""
-    if not os.path.exists(PENDING_FILE):
-        print("ℹ️  没有待反思的记忆文件")
-        return
-    
-    with open(PENDING_FILE, 'r', encoding='utf-8') as f:
-        memories = json.load(f)
-    
-    if not memories:
-        print("ℹ️  待反思记忆列表为空")
-        return
-    
-    print(f"🔄 开始反思 {len(memories)} 条待晋升记忆...\n")
-    
-    promoted_count = 0
-    for memory in memories:
-        # 简单策略：如果记忆存在超过 24 小时且无负面反馈，提升置信度
-        # 实际可以引入更复杂的评估（如用户反馈、使用频率等）
-        
-        original_confidence = memory['confidence']
-        new_confidence = min(original_confidence + 0.1, 0.95)  # 每次提升 0.1
-        
-        if new_confidence >= 0.8:
-            cmd = [
-                "python3",
-                os.path.expanduser("~/.openclaw/skills/dna-memory/scripts/evolve.py"),
-                "remember",
-                memory['content'],
-                "-t", memory['type'],
-                "-i", str(new_confidence)
-            ]
-            
-            try:
-                result = subprocess.run(cmd, capture_output=True, text=True, shell=False)
-                if result.returncode == 0:
-                    promoted_count += 1
-                    print(f"✅ [已晋升] {memory['content'][:50]}... ({original_confidence:.2f} → {new_confidence:.2f})")
-                else:
-                    print(f"❌ 保存失败：{result.stderr}")
-            except Exception as e:
-                print(f"❌ 执行错误：{e}")
-        else:
-            print(f"⏳ [继续等待] {memory['content'][:50]}... ({original_confidence:.2f} → {new_confidence:.2f})")
-    
-    print(f"\n📊 本次反思：晋升 {promoted_count} 条，继续等待 {len(memories) - promoted_count} 条")
-    
-    # 更新待反思列表（移除已晋升的）
-    remaining = [m for m in memories if m['confidence'] + 0.1 < 0.8]
-    if remaining:
-        with open(PENDING_FILE, 'w', encoding='utf-8') as f:
-            json.dump(remaining, f, ensure_ascii=False, indent=2)
-    else:
-        os.remove(PENDING_FILE)
-        print("🗑️  待反思文件已删除")
+
+def review_pending(path: Path) -> int:
+    """Report proposal counts without executing code or displaying memory text."""
+    path = path.expanduser()
+    if path.is_symlink():
+        raise ValueError("Pending file must not be a symbolic link")
+    if not path.exists():
+        print("No legacy pending file; nothing to review.")
+        return 0
+
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("Pending file must be a regular file")
+        if hasattr(os, "getuid") and info.st_uid != os.getuid():
+            raise ValueError("Pending file is not owned by the current user")
+        if info.st_mode & 0o077:
+            raise ValueError("Pending file permissions must be private (chmod 600)")
+        with os.fdopen(fd, "rb", closefd=False) as file:
+            raw = file.read(MAX_PENDING_BYTES + 1)
+    finally:
+        os.close(fd)
+
+    if len(raw) > MAX_PENDING_BYTES:
+        raise ValueError("Pending file exceeds the 1 MiB safety limit")
+    proposals = json.loads(raw.decode("utf-8"))
+    if not isinstance(proposals, list) or any(not isinstance(p, dict) for p in proposals):
+        raise ValueError("Expected a list of pending memory objects")
+
+    print(f"Pending proposals: {len(proposals)}")
+    print("No proposals were promoted, written, or printed.")
+    print("Review each proposal and use 'python3 dna.py memory remember --help' for verified writes.")
+    return len(proposals)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--pending-file", type=Path, default=DEFAULT_PENDING_FILE)
+    args = parser.parse_args(argv)
+    try:
+        review_pending(args.pending_file)
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        parser.exit(1, f"Pending review refused: {exc}\n")
+    return 0
+
 
 if __name__ == "__main__":
-    reflect_pending_memories()
+    raise SystemExit(main())
