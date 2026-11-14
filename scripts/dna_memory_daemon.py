@@ -55,13 +55,36 @@ def now_ts() -> str:
 
 
 def log_line(log_file: Path, message: str) -> None:
+    """Append operational metadata to a private, non-symlink log file."""
     log_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(f"[{now_ts()}] {message}\n")
+    if log_file.is_symlink():
+        raise ValueError("Refusing to write daemon log through symlink")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(log_file, flags, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8", closefd=False) as f:
+            f.write(f"[{now_ts()}] {message}\n")
+    finally:
+        os.close(fd)
+
+
+def write_pid_private(pid_file: Path, pid: int) -> None:
+    """Avoid following a link in the legacy /tmp PID path."""
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    if pid_file.is_symlink():
+        raise ValueError("Refusing to write daemon PID through symlink")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(pid_file, flags, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        os.write(fd, str(pid).encode("ascii"))
+    finally:
+        os.close(fd)
 
 
 def read_pid(pid_file: Path) -> Optional[int]:
-    if not pid_file.exists():
+    if pid_file.is_symlink() or not pid_file.exists():
         return None
     try:
         return int(pid_file.read_text(encoding="utf-8").strip())
@@ -85,11 +108,14 @@ def handle_stop_signal(signum, frame):  # noqa: ANN001,ARG001
 
 
 def run_action(action: str, log_file: Path, memory_dir: Optional[str], timeout: float) -> int:
+    # Only fixed, local legacy maintenance actions may be executed.
+    if action not in {"reflect", "decay"}:
+        raise ValueError("Unsupported daemon action")
     env = os.environ.copy()
     if memory_dir:
         env["DNA_MEMORY_DIR"] = memory_dir
 
-    cmd = ["python3", str(EVOLVE_SCRIPT), action]
+    cmd = [sys.executable, str(EVOLVE_SCRIPT), action]
     log_line(log_file, f"run: {' '.join(cmd)}")
     try:
         proc = subprocess.run(
@@ -99,14 +125,11 @@ def run_action(action: str, log_file: Path, memory_dir: Optional[str], timeout: 
             timeout=timeout,
             env=env,
             check=False,
+            shell=False,
+            stdin=subprocess.DEVNULL,
         )
-        if proc.stdout.strip():
-            for line in proc.stdout.strip().splitlines():
-                log_line(log_file, f"{action} stdout: {line}")
-        if proc.stderr.strip():
-            for line in proc.stderr.strip().splitlines():
-                log_line(log_file, f"{action} stderr: {line}")
-        log_line(log_file, f"{action} exit={proc.returncode}")
+        # Never persist command output: it may include private memory material.
+        log_line(log_file, f"{action} exit={proc.returncode}; stdout/stderr redacted")
         return proc.returncode
     except subprocess.TimeoutExpired:
         log_line(log_file, f"{action} timeout after {timeout}s")
@@ -187,14 +210,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     global RUNNING
     RUNNING = True
 
-    pid_file = Path(args.pid_file).expanduser().resolve()
-    log_file = Path(args.log_file).expanduser().resolve()
+    pid_file = Path(args.pid_file).expanduser().absolute()
+    log_file = Path(args.log_file).expanduser().absolute()
 
     signal.signal(signal.SIGTERM, handle_stop_signal)
     signal.signal(signal.SIGINT, handle_stop_signal)
 
-    pid_file.parent.mkdir(parents=True, exist_ok=True)
-    pid_file.write_text(str(os.getpid()), encoding="utf-8")
+    write_pid_private(pid_file, os.getpid())
     log_line(log_file, f"daemon started pid={os.getpid()}")
 
     last_reflect = 0.0
@@ -204,7 +226,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         log_file,
         (
             f"config reflect_interval={args.reflect_interval}s "
-            f"decay_interval={args.decay_interval}s memory_dir={memory_dir}"
+            f"decay_interval={args.decay_interval}s memory_dir=[private]"
         ),
     )
 
@@ -235,8 +257,8 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_start(args: argparse.Namespace) -> int:
-    pid_file = Path(args.pid_file).expanduser().resolve()
-    log_file = Path(args.log_file).expanduser().resolve()
+    pid_file = Path(args.pid_file).expanduser().absolute()
+    log_file = Path(args.log_file).expanduser().absolute()
     existing_pid = read_pid(pid_file)
     if existing_pid and is_pid_running(existing_pid):
         print(f"STATUS=already_running PID={existing_pid} PID_FILE={pid_file}")
@@ -262,15 +284,16 @@ def cmd_start(args: argparse.Namespace) -> int:
     if args.memory_dir:
         cmd.extend(["--memory-dir", args.memory_dir])
 
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(log_file, "a", encoding="utf-8") as out:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=out,
-            stderr=out,
-            start_new_session=True,
-            close_fds=True,
-        )
+    log_line(log_file, "starting legacy maintenance process; child output suppressed")
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        shell=False,
+        start_new_session=True,
+        close_fds=True,
+    )
 
     time.sleep(0.3)
     running = is_pid_running(proc.pid)
@@ -279,8 +302,8 @@ def cmd_start(args: argparse.Namespace) -> int:
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
-    pid_file = Path(args.pid_file).expanduser().resolve()
-    log_file = Path(args.log_file).expanduser().resolve()
+    pid_file = Path(args.pid_file).expanduser().absolute()
+    log_file = Path(args.log_file).expanduser().absolute()
     pid = read_pid(pid_file)
     if not pid:
         print(f"STATUS=not_running PID_FILE={pid_file}")
@@ -309,7 +332,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    pid_file = Path(args.pid_file).expanduser().resolve()
+    pid_file = Path(args.pid_file).expanduser().absolute()
     pid = read_pid(pid_file)
     if pid and is_pid_running(pid):
         print(f"STATUS=running PID={pid} PID_FILE={pid_file}")
