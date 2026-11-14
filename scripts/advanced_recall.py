@@ -264,7 +264,8 @@ def main():
             print(f"   {memory['content']}")
         else:
             print('   [记忆正文默认隐藏；在可信终端使用 --show-content 查看]')
-        print(f"   权重:{memory['weight']:.2f} | 标签:{memory['tags']}")
+        tags = memory['tags'] if args.show_content else '[隐藏]'
+        print(f"   权重:{memory['weight']:.2f} | 标签:{tags}")
         print()
 
 
