@@ -25,17 +25,20 @@ def test_advanced_recall_cli_redacts_content_by_default(monkeypatch, capsys):
     mod = load_script("advanced_recall.py")
     secret = "PRIVATE_MEMO_SENSITIVE_CONTENT"
     monkeypatch.setattr(mod, "advanced_recall", lambda **kwargs: [
-        {"id": 1, "type": "fact", "content": secret, "weight": 0.7, "tags": ""}
+        {"id": 1, "type": "fact", "content": secret, "weight": 0.7, "tags": "PRIVATE_TAG_SENSITIVE_CONTENT"}
     ])
     monkeypatch.setattr(sys, "argv", ["advanced_recall.py", "query"])
     mod.main()
     captured = capsys.readouterr().out
     assert secret not in captured
+    assert "PRIVATE_TAG_SENSITIVE_CONTENT" not in captured
     assert "--show-content" in captured
 
     monkeypatch.setattr(sys, "argv", ["advanced_recall.py", "query", "--show-content"])
     mod.main()
-    assert secret in capsys.readouterr().out
+    revealed = capsys.readouterr().out
+    assert secret in revealed
+    assert "PRIVATE_TAG_SENSITIVE_CONTENT" in revealed
 
 
 def test_pending_review_does_not_promote_or_disclose(monkeypatch, tmp_path, capsys):
