@@ -240,6 +240,7 @@ def main():
     parser.add_argument('--type', '-t', help='类型过滤')
     parser.add_argument('--limit', '-l', type=int, default=10, help='返回数量')
     parser.add_argument('--min-score', type=float, default=0.3, help='最低相关性得分')
+    parser.add_argument('--show-content', action='store_true', help='仅在可信终端显式展示原始记忆内容')
     
     args = parser.parse_args()
     
@@ -259,7 +260,10 @@ def main():
     for i, memory in enumerate(results, 1):
         score = memory.get('relevance_score', 0)
         print(f"{i}. [ID:{memory['id']}] [{memory['type']}] 相关性:{score:.2f}")
-        print(f"   {memory['content']}")
+        if args.show_content:
+            print(f"   {memory['content']}")
+        else:
+            print('   [记忆正文默认隐藏；在可信终端使用 --show-content 查看]')
         print(f"   权重:{memory['weight']:.2f} | 标签:{memory['tags']}")
         print()
 
