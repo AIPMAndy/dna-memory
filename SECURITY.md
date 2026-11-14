@@ -14,7 +14,7 @@ is a finding to investigate, not proof of exfiltration or compromise.
 
 | Scanned component | Evidence in the repository | Remediation |
 | --- | --- | --- |
-| `scripts/advanced_recall.py` | Local SQLite query; no network request in this module. The old CLI echoed memory contents. | CLI hides raw memory text by default; `--show-content` is an explicit opt-in for a trusted terminal. The callable search API still returns requested memory data. |
+| `scripts/advanced_recall.py` | Local SQLite query; no network request in this module. The old CLI echoed memory contents. | CLI hides raw memory text and tags by default; `--show-content` is an explicit opt-in for a trusted terminal. The callable search API still returns requested memory data. |
 | `scripts/dna_memory_daemon.py` | `subprocess` launches fixed, local `evolve.py` actions (`reflect` or `decay`) and the daemon itself; no `shell=True` found in these paths. Older logging copied raw command output. | Explicit action allowlist, local `sys.executable`, `shell=False`, `stdin=DEVNULL`, log output suppression, private (0600) PID/log files, reject symlink destinations. |
 | `scripts/reflect_pending.py` | Old script promoted unverified pending content automatically from a shared `/tmp` path. The subprocess used `shell=False`, but automated promotion violated the verification boundary. | Converted into a **read-only** review utility; it never runs a child process, prints private content, or auto-writes memories. Requires an owned private regular input file with bounded size. |
 
