@@ -297,6 +297,9 @@ python3 dna.py skills sync --apply --json
 
 ## 隐私与公开安全
 
+> **安全扫描说明（2026-11-14）**：第三方 SkillsCat 曾对旧版 Python 脚本标记 AI Scan High；这不是已证实的数据泄露。本仓库已对相关旧脚本增加隐私保护和安全校验，完整证据、使用限制、测试方式见 [SECURITY.md](SECURITY.md)。第三方页面的分数是否更新，取决于其重新索引和扫描，不能直接视为已清除。
+
+
 仓库不包含真实 profile、数据库、会话、记忆 JSON、个人 Skill 或内部部署记录。
 发布前运行：
 
