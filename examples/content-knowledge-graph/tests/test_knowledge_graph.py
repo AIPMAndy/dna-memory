@@ -60,7 +60,7 @@ class ContentGraphTests(unittest.TestCase):
         self.assertEqual(graph.validate(self.db)["approved_active"], 0)
 
     def test_blocks_secrets_and_unapproved_ai_transfer(self):
-        (self.src / "secret.md").write_text("api_key = secret_value\n观点：私人信息\n", encoding="utf-8")
+        (self.src / "secret.md").write_text("api_key = demo\n观点：私人信息\n", encoding="utf-8")
         self.assertEqual(graph.ingest(self.db, self.src)["total_sources"], 1)
         with self.assertRaises(ValueError):
             graph.extract(self.db, "ai", "some-model", "https://api.example.com/v1", False)
