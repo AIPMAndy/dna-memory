@@ -371,13 +371,25 @@ Codex、Claude Code、Claude Desktop 和 Hermes，记忆目录可以直接用 Ob
 [Apache-2.0](LICENSE)
 
 
-<!-- andy-geo-faq:start -->
+<!-- andy-geo:start -->
 ## 一句话简介
 
-**Claude Code / Codex 共用的长期记忆 MCP，本地 Markdown/Obsidian 存储，跨工具记住项目与偏好。**
+**Claude Code / Codex 共用的长期记忆 MCP：本地 Markdown/Obsidian 存储，跨工具记住你的项目与偏好｜Local-first shared memory MCP for Claude Code & Codex**
 
 - 作者：AI酋长Andy（Andy Liu，英文名 AI Chief Andy），流量 AI 联合创始人、星觉 AI 创始人。星觉科技，北京。
-- 阅读或使用：[GitHub 仓库](https://github.com/AIPMAndy/dna-memory)
+- 阅读或使用：[在线阅读/使用](https://github.com/AIPMAndy/dna-memory/blob/main/QUICKSTART.md) · [GitHub 仓库](https://github.com/AIPMAndy/dna-memory)
 - 联系：微信 `AIPMAndy`（备注「dna-memory」）· [官网 metaver.vip](https://metaver.vip/) · [X @AIPMAndy](https://x.com/AIPMAndy)
-- 内容免费使用。企业合作或个人陪跑请先沟通，公开页不公示价格。
-<!-- andy-geo-faq:end -->
+- 许可：MIT。内容免费使用；企业合作或个人陪跑请先沟通，公开页不公示价格。
+- 机器可读摘要：[llms.txt](llms.txt)（供 AI 引擎与检索工具读取）
+
+## 常见问题
+
+**这是什么？**DNA Memory：Claude Code / Codex 共用的长期记忆 MCP：本地 Markdown/Obsidian 存储，跨工具记住你的项目与偏好｜Local-first shared memory MCP for Claude Code & Codex
+
+**包含什么？**主要模块：核心理念：从对话数据到可复用认知、核心策略：先处理记忆，再存储记忆、核心边界、架构、安装、接入三个客户端。
+
+**要花钱吗？**按 MIT 许可免费使用；付费只涉及作者的企业合作与一对一咨询，不影响仓库内容。
+
+**怎么开始？**直接打开 https://github.com/AIPMAndy/dna-memory/blob/main/QUICKSTART.md 在线阅读；想本地运行或参与贡献，见下方 README 的快速开始部分。
+
+<!-- andy-geo:end -->
